@@ -253,7 +253,7 @@ namespace AutoDownloader
 
         private void Remove(Link l)
         {
-            switch (current.type)
+            switch (l.type)
             {
                 case Type.subbed:
                     subbed.Remove(l.episodeUrl);
