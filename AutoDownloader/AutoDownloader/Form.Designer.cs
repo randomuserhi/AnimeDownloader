@@ -37,7 +37,6 @@ namespace AutoDownloader
             this.GetEpisodes = new System.Windows.Forms.Button();
             this.Episodes = new System.Windows.Forms.ListBox();
             this.AddEpisodes = new System.Windows.Forms.Button();
-            this.Type = new System.Windows.Forms.ComboBox();
             this.BrowseSavePath = new System.Windows.Forms.Button();
             this.Downloads = new System.Windows.Forms.ListBox();
             this.CurrentProgress = new System.Windows.Forms.ProgressBar();
@@ -48,6 +47,10 @@ namespace AutoDownloader
             this.SelectAll = new System.Windows.Forms.Button();
             this.Download = new System.Windows.Forms.Button();
             this.label1 = new System.Windows.Forms.Label();
+            this.DubbedButton = new System.Windows.Forms.Button();
+            this.SubbedButton = new System.Windows.Forms.Button();
+            this.currentAnimeLabel = new System.Windows.Forms.TextBox();
+            this.CurrentSelection = new System.Windows.Forms.TextBox();
             this.SuspendLayout();
             // 
             // browser
@@ -60,10 +63,10 @@ namespace AutoDownloader
             // 
             // Debug
             // 
-            this.Debug.Location = new System.Drawing.Point(1020, 516);
+            this.Debug.Location = new System.Drawing.Point(1020, 417);
             this.Debug.Name = "Debug";
             this.Debug.ReadOnly = true;
-            this.Debug.Size = new System.Drawing.Size(450, 153);
+            this.Debug.Size = new System.Drawing.Size(450, 252);
             this.Debug.TabIndex = 2;
             this.Debug.Text = "";
             // 
@@ -71,18 +74,18 @@ namespace AutoDownloader
             // 
             this.fetcher.ActivateBrowserOnCreation = false;
             this.fetcher.Enabled = false;
-            this.fetcher.Location = new System.Drawing.Point(1020, 388);
+            this.fetcher.Location = new System.Drawing.Point(1020, 401);
             this.fetcher.Name = "fetcher";
-            this.fetcher.Size = new System.Drawing.Size(231, 122);
+            this.fetcher.Size = new System.Drawing.Size(231, 10);
             this.fetcher.TabIndex = 3;
             // 
             // downloader
             // 
             this.downloader.ActivateBrowserOnCreation = false;
             this.downloader.Enabled = false;
-            this.downloader.Location = new System.Drawing.Point(1257, 388);
+            this.downloader.Location = new System.Drawing.Point(1257, 401);
             this.downloader.Name = "downloader";
-            this.downloader.Size = new System.Drawing.Size(213, 122);
+            this.downloader.Size = new System.Drawing.Size(213, 10);
             this.downloader.TabIndex = 4;
             // 
             // GetEpisodes
@@ -98,11 +101,12 @@ namespace AutoDownloader
             // Episodes
             // 
             this.Episodes.FormattingEnabled = true;
-            this.Episodes.Location = new System.Drawing.Point(601, 81);
+            this.Episodes.Location = new System.Drawing.Point(601, 120);
             this.Episodes.Name = "Episodes";
             this.Episodes.SelectionMode = System.Windows.Forms.SelectionMode.MultiExtended;
-            this.Episodes.Size = new System.Drawing.Size(179, 459);
+            this.Episodes.Size = new System.Drawing.Size(179, 420);
             this.Episodes.TabIndex = 6;
+            this.Episodes.SelectedValueChanged += new System.EventHandler(this.Episodes_SelectedValueChanged);
             // 
             // AddEpisodes
             // 
@@ -113,16 +117,6 @@ namespace AutoDownloader
             this.AddEpisodes.Text = "Add Selected";
             this.AddEpisodes.UseVisualStyleBackColor = true;
             this.AddEpisodes.Click += new System.EventHandler(this.AddEpisodes_Click);
-            // 
-            // Type
-            // 
-            this.Type.FormattingEnabled = true;
-            this.Type.Location = new System.Drawing.Point(601, 54);
-            this.Type.Name = "Type";
-            this.Type.Size = new System.Drawing.Size(179, 21);
-            this.Type.TabIndex = 8;
-            this.Type.Text = "Dubbed";
-            this.Type.SelectedIndexChanged += new System.EventHandler(this.Type_SelectedIndexChanged);
             // 
             // BrowseSavePath
             // 
@@ -137,11 +131,12 @@ namespace AutoDownloader
             // Downloads
             // 
             this.Downloads.FormattingEnabled = true;
-            this.Downloads.Location = new System.Drawing.Point(786, 54);
+            this.Downloads.Location = new System.Drawing.Point(786, 80);
             this.Downloads.Name = "Downloads";
             this.Downloads.SelectionMode = System.Windows.Forms.SelectionMode.MultiExtended;
-            this.Downloads.Size = new System.Drawing.Size(228, 615);
+            this.Downloads.Size = new System.Drawing.Size(228, 589);
             this.Downloads.TabIndex = 11;
+            this.Downloads.SelectedValueChanged += new System.EventHandler(this.Downloads_SelectedValueChanged);
             // 
             // CurrentProgress
             // 
@@ -185,7 +180,6 @@ namespace AutoDownloader
             // 
             // SavePathLabel
             // 
-            this.SavePathLabel.Enabled = false;
             this.SavePathLabel.Location = new System.Drawing.Point(963, 21);
             this.SavePathLabel.Name = "SavePathLabel";
             this.SavePathLabel.Size = new System.Drawing.Size(507, 20);
@@ -220,9 +214,52 @@ namespace AutoDownloader
             this.label1.TabIndex = 19;
             this.label1.Text = "Download Folder:";
             // 
+            // DubbedButton
+            // 
+            this.DubbedButton.Enabled = false;
+            this.DubbedButton.Location = new System.Drawing.Point(689, 54);
+            this.DubbedButton.Name = "DubbedButton";
+            this.DubbedButton.Size = new System.Drawing.Size(91, 36);
+            this.DubbedButton.TabIndex = 20;
+            this.DubbedButton.Text = "Dub";
+            this.DubbedButton.UseVisualStyleBackColor = true;
+            this.DubbedButton.Click += new System.EventHandler(this.DubbedButton_Click);
+            // 
+            // SubbedButton
+            // 
+            this.SubbedButton.Location = new System.Drawing.Point(601, 54);
+            this.SubbedButton.Name = "SubbedButton";
+            this.SubbedButton.Size = new System.Drawing.Size(91, 36);
+            this.SubbedButton.TabIndex = 21;
+            this.SubbedButton.Text = "Sub";
+            this.SubbedButton.UseVisualStyleBackColor = true;
+            this.SubbedButton.Click += new System.EventHandler(this.SubbedButton_Click);
+            // 
+            // currentAnimeLabel
+            // 
+            this.currentAnimeLabel.Enabled = false;
+            this.currentAnimeLabel.Location = new System.Drawing.Point(601, 94);
+            this.currentAnimeLabel.Name = "currentAnimeLabel";
+            this.currentAnimeLabel.ReadOnly = true;
+            this.currentAnimeLabel.Size = new System.Drawing.Size(179, 20);
+            this.currentAnimeLabel.TabIndex = 22;
+            // 
+            // CurrentSelection
+            // 
+            this.CurrentSelection.Enabled = false;
+            this.CurrentSelection.Location = new System.Drawing.Point(786, 54);
+            this.CurrentSelection.Name = "CurrentSelection";
+            this.CurrentSelection.ReadOnly = true;
+            this.CurrentSelection.Size = new System.Drawing.Size(228, 20);
+            this.CurrentSelection.TabIndex = 23;
+            // 
             // Form
             // 
             this.ClientSize = new System.Drawing.Size(1482, 681);
+            this.Controls.Add(this.CurrentSelection);
+            this.Controls.Add(this.currentAnimeLabel);
+            this.Controls.Add(this.SubbedButton);
+            this.Controls.Add(this.DubbedButton);
             this.Controls.Add(this.label1);
             this.Controls.Add(this.Download);
             this.Controls.Add(this.SelectAll);
@@ -233,7 +270,6 @@ namespace AutoDownloader
             this.Controls.Add(this.CurrentProgress);
             this.Controls.Add(this.Downloads);
             this.Controls.Add(this.BrowseSavePath);
-            this.Controls.Add(this.Type);
             this.Controls.Add(this.AddEpisodes);
             this.Controls.Add(this.Episodes);
             this.Controls.Add(this.GetEpisodes);
@@ -245,6 +281,7 @@ namespace AutoDownloader
             this.MaximumSize = new System.Drawing.Size(1498, 720);
             this.MinimumSize = new System.Drawing.Size(1498, 720);
             this.Name = "Form";
+            this.Text = "Auto Downloader";
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -259,7 +296,6 @@ namespace AutoDownloader
         private System.Windows.Forms.Button GetEpisodes;
         private System.Windows.Forms.ListBox Episodes;
         private System.Windows.Forms.Button AddEpisodes;
-        private System.Windows.Forms.ComboBox Type;
         private System.Windows.Forms.Button BrowseSavePath;
         public System.Windows.Forms.ListBox Downloads;
         private System.Windows.Forms.ProgressBar CurrentProgress;
@@ -270,6 +306,10 @@ namespace AutoDownloader
         private System.Windows.Forms.Button SelectAll;
         private System.Windows.Forms.Button Download;
         private System.Windows.Forms.Label label1;
+        public System.Windows.Forms.Button DubbedButton;
+        public System.Windows.Forms.Button SubbedButton;
+        private System.Windows.Forms.TextBox currentAnimeLabel;
+        private System.Windows.Forms.TextBox CurrentSelection;
     }
 }
 

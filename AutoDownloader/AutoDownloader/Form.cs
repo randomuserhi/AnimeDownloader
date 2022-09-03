@@ -10,6 +10,9 @@ using System.Windows.Forms;
 using System.IO;
 using CefSharp;
 using System.Runtime.InteropServices;
+using System.CodeDom.Compiler;
+using System.Diagnostics;
+using System.Net;
 
 namespace AutoDownloader
 {
@@ -30,23 +33,64 @@ namespace AutoDownloader
     {
         AutoDownloader_9Animeid manager;
 
-        Timer loop = new Timer();
-        Task ongoing = null;
+        public class ScrollingText
+        {
+            public string Text {
+                set
+                {
+                    rollingText = new StringBuilder(value);
+                    container.Text = rollingText.ToString();
+                    for (int i = 0, j = rollingText.Length; j < 40 || i < 15; i++, j++) rollingText.Append(" ");
+                    scrollingText.Interval = 1000;
+                }
+            }
+            StringBuilder rollingText = new StringBuilder();
+            Timer scrollingText = new Timer();
 
+            TextBox container;
+
+            public ScrollingText(TextBox container)
+            {
+                this.container = container;
+                container.Font = new Font(FontFamily.GenericMonospace, container.Font.Size); ;
+
+                scrollingText.Interval = 100;
+                scrollingText.Tick += (object sender, EventArgs e) =>
+                {
+                    scrollingText.Interval = 100;
+                    string temp = rollingText.ToString();
+                    if (temp.Length == 0) return;
+                    container.Text = temp;
+                    for (int i = 0; i < rollingText.Length - 1; i++)
+                        rollingText[i] = temp[i + 1];
+                    rollingText[temp.Length - 1] = temp[0];
+                };
+                scrollingText.Start();
+            }
+        }
+
+        ScrollingText currentAnimeScroll;
+        ScrollingText selectionScroll;
+
+        Timer loop = new Timer();
+
+        public int subbedDubbed = 0;
         public Form()
         {
             InitializeComponent();
+
+            CheckForUpdates();
 
             CurrentProgress.Minimum = 0;
             CurrentProgress.Maximum = 100;
 
             CurrentLabel.Text = string.Empty;
+            currentAnimeLabel.Text = string.Empty;
 
             manager = new AutoDownloader_9Animeid(this, fetcher, downloader);
 
-            Type.Items.Add("Dubbed");
-            Type.Items.Add("Subbed");
-            Type.SelectedIndex = 0;
+            currentAnimeScroll = new ScrollingText(currentAnimeLabel);
+            selectionScroll = new ScrollingText(CurrentSelection);
 
             loop.Interval = 100;
             loop.Tick += (object sender, EventArgs e) => {
@@ -55,6 +99,24 @@ namespace AutoDownloader
 
             browser.LifeSpanHandler = new PopupManager();
             browser.Load("https://9anime.id/");
+        }
+
+        private void CheckForUpdates()
+        {
+            using (WebClient wc = new WebClient())
+            {
+                wc.Headers.Add("a", "a");
+                try
+                {
+                    wc.DownloadFile("https://github.com/github/platform-samples/blob/master/LICENSE.txt", @"updateInfo.update");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex.ToString());
+                }
+                Console.ReadKey();
+                Console.ReadLine();
+            }
         }
 
         protected override void OnClosed(EventArgs e)
@@ -93,18 +155,32 @@ namespace AutoDownloader
             ScrollToBottom(Debug);
         }
 
-        private void EpisodeControl(bool enabled)
+        private bool episodeControl = true;
+        private void EpisodeControl(bool enabled, bool set = true)
         {
             if (InvokeRequired)
             {
-                this.Invoke(new Action<bool>(EpisodeControl), new object[] { enabled });
+                this.Invoke(new Action<bool, bool>(EpisodeControl), new object[] { enabled, set });
                 return;
             }
+
+            if (set) episodeControl = enabled;
+            currentAnimeLabel.Text = currentAnime;
 
             GetEpisodes.Enabled = enabled;
             AddEpisodes.Enabled = enabled;
             Episodes.Enabled = enabled;
-            Type.Enabled = enabled;
+            if (enabled)
+            {
+                currentAnimeScroll.Text = currentAnime;
+                SubbedButton.Enabled = subbedDubbed == 0;
+                DubbedButton.Enabled = subbedDubbed == 1;
+            }
+            else
+            {
+                SubbedButton.Enabled = enabled;
+                DubbedButton.Enabled = enabled;
+            }
             SelectAll.Enabled = enabled;
         }
 
@@ -119,6 +195,7 @@ namespace AutoDownloader
             Cancel.Enabled = enabled;
         }
 
+        AutoDownloader_9Animeid.Link[] currentEpisodes = new AutoDownloader_9Animeid.Link[0];
         public void SetEpisodes(AutoDownloader_9Animeid.Link[] links)
         {
             if (InvokeRequired)
@@ -127,6 +204,7 @@ namespace AutoDownloader
                 return;
             }
 
+            currentEpisodes = links;
             Episodes.Items.Clear();
             for (int i = 0; i < links.Length; i++)
             {
@@ -160,8 +238,9 @@ namespace AutoDownloader
 
         private void GetEpisodes_Click(object sender, EventArgs e)
         {
-            manager.GetEpisodes(browser.Address, (AutoDownloader_9Animeid.Type)Type.SelectedIndex).ContinueWith(result =>
+            manager.GetEpisodes(browser.Address, (AutoDownloader_9Animeid.Type)subbedDubbed).ContinueWith(result =>
             {
+                currentAnime = manager.currentAnime;
                 EpisodeControl(true);
                 SetEpisodes(result.Result);
             });
@@ -178,6 +257,34 @@ namespace AutoDownloader
             }
         }
 
+        public void RestoreEpisodesFromListings(List<AutoDownloader_9Animeid.Link> link)
+        {
+            if (manager == null) return; //Prevents first boot up call from breaking
+
+            Log("[Manager] Restoring and removing episodes from listings...");
+            bool prevState = Downloads.Enabled;
+            Downloads.Enabled = false;
+            EpisodeControl(false, false);
+
+            Episodes.Items.Clear();
+            for (int i = 0; i < currentEpisodes.Length; i++)
+            {
+                if (!link.Any(l => l == currentEpisodes[i]) && 
+                    !manager.subbed.ContainsKey(currentEpisodes[i].episodeUrl) && 
+                    !manager.dubbed.ContainsKey(currentEpisodes[i].episodeUrl))
+                    Episodes.Items.Add(currentEpisodes[i]);
+            }
+
+            foreach (AutoDownloader_9Animeid.Link item in manager.queue)
+            {
+                if (!link.Any(l => l == item))
+                    Downloads.Items.Add(item);
+            }
+
+            Downloads.Enabled = prevState;
+            EpisodeControl(episodeControl);
+        }
+
         private void AddEpisodes_Click(object sender, EventArgs e)
         {
             AutoDownloader_9Animeid.Link[] links = new AutoDownloader_9Animeid.Link[Episodes.SelectedIndices.Count];
@@ -190,30 +297,59 @@ namespace AutoDownloader
                 Episodes.Items.Remove(links[i]);
                 Downloads.Items.Add(links[i]);
             }
-            manager.AddEpisodes(links, (AutoDownloader_9Animeid.Type)Type.SelectedIndex);
+            manager.AddEpisodes(links, (AutoDownloader_9Animeid.Type)subbedDubbed);
         }
 
-        //TODO:: make it such that this re-adds them to the add list as long as the current episode list is from the same anime
+        public void RestoreEpisode(AutoDownloader_9Animeid.Link link)
+        {
+            if (InvokeRequired)
+            {
+                this.Invoke(new Action<AutoDownloader_9Animeid.Link>(RestoreEpisode), new object[] { link });
+                return;
+            }
+
+            if (link.anime == currentAnime)
+            {
+                if (Episodes.Items.Count == 0) Episodes.Items.Add(link);
+                else for (int j = 0; j < Episodes.Items.Count + 1; j++)
+                    {
+                        if (j < Episodes.Items.Count)
+                        {
+                            if (((AutoDownloader_9Animeid.Link)Episodes.Items[j]).index > link.index)
+                            {
+                                Episodes.Items.Insert(j, link);
+                                break;
+                            }
+                        }
+                        else
+                        {
+                            Episodes.Items.Add(link);
+                            break;
+                        }
+                    }
+            }
+        }
+
+        private string currentAnime = string.Empty;
         private void RemoveEpisodes_Click(object sender, EventArgs e)
         {
             AutoDownloader_9Animeid.Link[] links = new AutoDownloader_9Animeid.Link[Downloads.SelectedIndices.Count];
-            for (int i = 0; i < links.Length; i++)
-            {
-                links[i] = (AutoDownloader_9Animeid.Link)Downloads.Items[Downloads.SelectedIndices[i]];
-            }
+            for (int i = 0; i < links.Length; i++) links[i] = (AutoDownloader_9Animeid.Link)Downloads.Items[Downloads.SelectedIndices[i]];
             for (int i = 0; i < links.Length; i++)
             {
                 Downloads.Items.Remove(links[i]);
+                RestoreEpisode(links[i]);
             }
+
             manager.RemoveEpisodes(links);
         }
 
         private int lastType = 0;
         private void Type_SelectedIndexChanged(object sender, EventArgs e)
         {
-            if (lastType != Type.SelectedIndex)
+            if (lastType != subbedDubbed)
             {
-                lastType = Type.SelectedIndex;
+                lastType = subbedDubbed;
                 Episodes.Items.Clear();
             }
         }
@@ -254,12 +390,49 @@ namespace AutoDownloader
         private void BrowseSavePath_Click(object sender, EventArgs e)
         {
             var dlg = new FolderPicker();
-            dlg.InputPath = @"c:\windows\system32";
+            dlg.InputPath = manager.savePath == String.Empty ? @"c:\" : manager.savePath;
             if (dlg.ShowDialog(IntPtr.Zero) == true)
             {
                 SavePathLabel.Text = dlg.ResultPath;
                 manager.savePath = SavePathLabel.Text;
+                manager.CheckAnimes();
             }
+
+            manager.SaveSettings();
+        }
+
+        private void SubbedButton_Click(object sender, EventArgs e)
+        {
+            SubbedButton.Enabled = false;
+            DubbedButton.Enabled = true;
+            subbedDubbed = 1;
+        }
+
+        private void DubbedButton_Click(object sender, EventArgs e)
+        {
+            SubbedButton.Enabled = true;
+            DubbedButton.Enabled = false;
+            subbedDubbed = 0;
+        }
+
+        private void Episodes_SelectedValueChanged(object sender, EventArgs e)
+        {
+            if (Episodes.SelectedItems.Count == 0)
+            {
+                selectionScroll.Text = string.Empty;
+                return;
+            }
+            selectionScroll.Text = ((AutoDownloader_9Animeid.Link)Episodes.SelectedItems[Episodes.SelectedItems.Count - 1]).ToString();
+        }
+
+        private void Downloads_SelectedValueChanged(object sender, EventArgs e)
+        {
+            if (Downloads.SelectedItems.Count == 0)
+            {
+                selectionScroll.Text = string.Empty;
+                return;
+            }
+            selectionScroll.Text = ((AutoDownloader_9Animeid.Link)Downloads.SelectedItems[Downloads.SelectedItems.Count - 1]).ToString();
         }
     }
 }

@@ -8,6 +8,7 @@ using CefSharp;
 using CefSharp.WinForms;
 using System.Windows.Forms;
 using System.Threading;
+using System.Runtime.CompilerServices;
 
 namespace AutoDownloader
 {
@@ -23,6 +24,7 @@ namespace AutoDownloader
         {
             public string id;
             public string fileName;
+            public string filePath;
             public string location;
             public string url;
             public bool completed;
@@ -43,7 +45,27 @@ namespace AutoDownloader
 
             public override string ToString()
             {
-                return (type == Type.subbed ? "[Sub] " : "[Dub] ") + (index + 1) + (filler ? " **Filler** " : string.Empty) + (episode != string.Empty ? " - " + episode : string.Empty);
+                return (type == Type.subbed ? "[Sub] " : "[Dub] ") + (index + 1) + " - " + anime + " " + (filler ? " **Filler** " : string.Empty) + (episode != string.Empty ? " - " + episode : string.Empty);
+            }
+
+            public static bool operator ==(Link a, Link b)
+            {
+                return (a.anime == b.anime) && (a.episode == b.episode) && (a.index == b.index);
+            }
+
+            public static bool operator !=(Link a, Link b)
+            {
+                return (a.anime != b.anime) || (a.episode != b.episode) || (a.index != b.index);
+            }
+
+            public override bool Equals(object o)
+            {
+                return base.Equals(o);
+            }
+
+            public override int GetHashCode()
+            {
+                return base.GetHashCode();
             }
         }
 
@@ -112,10 +134,10 @@ namespace AutoDownloader
         ChromiumWebBrowser downloader;
         DownloadManager downloads;
 
-        Dictionary<string, Link> subbed = new Dictionary<string, Link>();
-        Dictionary<string, Link> dubbed = new Dictionary<string, Link>();
+        public Dictionary<string, Link> subbed = new Dictionary<string, Link>();
+        public Dictionary<string, Link> dubbed = new Dictionary<string, Link>();
 
-        LinkedList<Link> queue = new LinkedList<Link>();
+        public LinkedList<Link> queue = new LinkedList<Link>();
 
         public Form form;
 
@@ -138,65 +160,152 @@ namespace AutoDownloader
         }
 
         static string settingsLocation = "settings.txt";
-        public void LoadSettings()
+        private void LoadSettings()
         {
-            if (!File.Exists(settingsLocation)) return;
-
-            string[] lines = File.ReadAllLines(settingsLocation);
-            savePath = lines[0];
-            form.SavePathLabel.Text = savePath;
-
-            string[] sub = Directory.GetDirectories(savePath);
-            for (int i = 0; i < sub.Length; i++)
+            form.Log("[Manager] Loading settings.txt ...");
+            if (!File.Exists(settingsLocation))
             {
-                string path = Path.Combine(savePath, sub[i], @"Sub\autodownloader.ini");
-                if (File.Exists(path))
+                form.Log("[Manager] settings.txt does not exist.");
+                return;
+            }
+            try
+            {
+                form.Log("[Manager] Reading settings.txt ...");
+                string[] lines = File.ReadAllLines(settingsLocation);
+
+                if (!Directory.Exists(lines[0])) lines[0] = string.Empty;
+                savePath = lines[0];
+                form.SavePathLabel.Text = savePath;
+                form.subbedDubbed = int.Parse(lines[1]);
+                form.SubbedButton.Enabled = form.subbedDubbed == 0;
+                form.DubbedButton.Enabled = form.subbedDubbed == 1;
+
+                if (savePath == string.Empty) return;
+                CheckAnimes();
+            }
+            catch (Exception)
+            {
+                form.Log("Unable to load old settings.txt, removing...");
+                File.Delete(settingsLocation);
+            }
+        }
+        public void CheckAnimes()
+        {
+            form.Log("[Manager] Checking anime folder...");
+            string[] directories = Directory.GetDirectories(savePath);
+            List<Link> foundLinks = new List<Link>();
+            for (int i = 0; i < directories.Length; i++)
+            {
+                foundLinks.AddRange(LoadEpisodes(subbed, Path.Combine(savePath, directories[i], @"Sub\autodownloader.ini")));
+                foundLinks.AddRange(LoadEpisodes(dubbed, Path.Combine(savePath, directories[i], @"Dub\autodownloader.ini")));
+            }
+            form.RestoreEpisodesFromListings(foundLinks);
+            form.Log("[Manager] Finished.");
+        }
+        private List<Link> LoadEpisodes(Dictionary<string, Link> database, string filePath)
+        {
+            List<Link> foundLinks = new List<Link>();
+            if (File.Exists(filePath))
+            {
+                string[] data = VerifyMetaFile(filePath);
+                if (data == null)
                 {
-                    string[] links = File.ReadAllLines(path);
-                    for (int j = 0; j < links.Length; j++)
+                    form.Log("[Manager] autodownloader.ini failed verification..." + filePath);
+                    return foundLinks;
+                }
+                try
+                {
+                    for (int j = 2; j < data.Length; j++)
                     {
-                        if (!subbed.ContainsKey(links[j]))
+                        try
                         {
-                            string[] components = links[j].Split('?');
-                            subbed.Add(components[0], new Link()
+                            if (!database.ContainsKey(data[j]))
                             {
-                                anime = sub[i],
-                                index = int.Parse(components[1]),
-                                filler = components[2] == "true",
-                                episode = components[3],
-                                type = Type.subbed
-                            });
+                                string[] components = data[j].Split('?');
+                                Link l = new Link()
+                                {
+                                    anime = data[1],
+                                    episodeUrl = components[0],
+                                    index = int.Parse(components[1]),
+                                    filler = components[2] == "true",
+                                    episode = components[3],
+                                    type = Type.subbed
+                                };
+                                foundLinks.Add(l);
+                                if (!database.ContainsKey(components[0]))
+                                    database.Add(components[0], l);
+                            }
+                        }
+                        catch (Exception err)
+                        {
+                            form.Log("[Manager] Failed to load episode for " + filePath);
+                            form.Log("[Manager : FATAL ERROR] " + err.Message);
                         }
                     }
                 }
-
-                path = Path.Combine(savePath, sub[i], @"Dub\autodownloader.ini");
-                if (File.Exists(path))
+                catch (Exception err)
                 {
-                    string[] links = File.ReadAllLines(path);
-                    for (int j = 0; j < links.Length; j++)
-                    {
-                        if (!subbed.ContainsKey(links[j]))
-                        {
-                            string[] components = links[j].Split('?');
-                            subbed.Add(components[0], new Link()
-                            {
-                                anime = sub[i],
-                                index = int.Parse(components[1]),
-                                filler = components[2] == "true",
-                                episode = components[3],
-                                type = Type.dubbed
-                            });
-                        }
-                    }
+                    form.Log("[Manager] Failed to read meta data for " + filePath);
+                    form.Log("[Manager : FATAL ERROR] " + err.Message);
                 }
             }
+            return foundLinks;
+        }
+        private string[] VerifyMetaFile(string filePath)
+        {
+            string version = "1.0.0";
+
+            StringBuilder edits = new StringBuilder();
+            string[] lines = File.ReadAllLines(filePath);
+            string[] header = lines[0].Split('?');
+            if (header.Length != 2)
+            {
+                form.Log("[Manager] autodownloader.ini has an invalid header, assuming it is an old version...");
+                form.Log("[Manager : WARNING] Reconstruction of autodownloader.ini may fail resulting in dat for the given folder to be invalid.");
+                try
+                {
+                    edits.AppendLine(version + "?");
+                    FileInfo fileInfo = new FileInfo(filePath);
+                    edits.AppendLine(fileInfo.Directory.Parent.Name);
+                }
+                catch (Exception err)
+                {
+                    form.Log("[Manager] Failed to reconstruct autodownloader.ini for " + filePath);
+                    form.Log("[Manager : FATAL ERROR] " + err.Message);
+
+                    return null;
+                }
+            }
+            else if (header[0] != version)
+            {
+                form.Log("[Manager] autodownloader.ini is an old version...");
+                try
+                {
+                    edits.AppendLine(version + "?");
+                }
+                catch (Exception err)
+                {
+                    form.Log("[Manager] Failed to update autodownloader.ini for " + filePath);
+                    form.Log("[Manager : FATAL ERROR] " + err.Message);
+
+                    return null;
+                }
+            }
+
+            if (edits.Length > 0)
+            {
+                for (int i = 0; i < lines.Length; i++) edits.AppendLine(lines[i]);
+                File.WriteAllText(filePath, edits.ToString());
+            }
+
+            return File.ReadAllLines(filePath);
         }
 
         public void SaveSettings()
         {
             StringBuilder sb = new StringBuilder();
             sb.AppendLine(savePath);
+            sb.AppendLine("" + form.subbedDubbed);
             File.WriteAllText(settingsLocation, sb.ToString());
         }
 
@@ -310,14 +419,6 @@ namespace AutoDownloader
                     }
                 }
             }
-            else
-            {
-                form.Downloads.Items.Clear();
-                foreach (Link l in queue)
-                {
-                    form.Downloads.Items.Add(l);
-                }
-            }
 
             string key = downloads.files.Keys.ToArray()[0];
             if (downloads.files[key].completed || downloads.files[key].cancelled) downloads.files.Remove(key);
@@ -394,6 +495,7 @@ namespace AutoDownloader
             }
         }
 
+        public string currentAnime = string.Empty;
         public async Task<Link[]> GetEpisodes(string url, Type type)
         {
             form.Log("[Get] Loading site...");
@@ -405,7 +507,7 @@ namespace AutoDownloader
             string html = await fetcher.GetSourceAsync();
             if (!html.Contains(tag)) tag = "<div class=\"episodes name\">";
             int start = html.IndexOf(tag);
-            File.WriteAllText(@"D:\test.txt", html);
+            //File.WriteAllText(@"D:\test.txt", html);
             for (int i = 0; i < 9 && start < 0; i++)
             {
                 form.Log("[Get] Attempt " + (i + 2) + "...");
@@ -510,6 +612,7 @@ namespace AutoDownloader
                 }
             }
             form.Log("[Get] Finished.");
+            currentAnime = anime;
             return links.ToArray();
         }
     }
@@ -561,10 +664,17 @@ namespace AutoDownloader
             {
                 using (callback)
                 {
+                    Uri uri = new Uri(downloadItem.Url);
+                    string id = Path.GetFileName(uri.AbsolutePath);
+
                     AutoDownloader_9Animeid.Link l = downloader.current;
                     if (downloader.savePath == string.Empty) downloader.savePath = AppDomain.CurrentDomain.BaseDirectory;
                     string DownloadsDirectoryPath = Path.Combine(downloader.savePath, l.anime, (l.type == AutoDownloader_9Animeid.Type.subbed ? @"Sub" : @"Dub"));
-                    string fullPath = Path.Combine(DownloadsDirectoryPath, l.ToString() + ".mp4");
+                    string fullPath = Path.Combine(DownloadsDirectoryPath, l.ToString() + ".temp");
+
+                    AutoDownloader_9Animeid.DownloadProgress progress = files[id];
+                    progress.filePath = fullPath;
+                    files[id] = progress;
 
                     form.Log("[Web] Started downloading to: " + fullPath);
 
@@ -585,7 +695,9 @@ namespace AutoDownloader
 
                 if (!files.ContainsKey(id))
                 {
-                    form.Log("[Web] Unable to find file of id...");
+                    form.Log("[Web] Unable to find file of id, clearing...");
+                    form.ClearProgress();
+                    callback.Cancel();
                     return;
                 }
 
@@ -593,6 +705,7 @@ namespace AutoDownloader
                 if (progress.cancelled)
                 {
                     form.Log("[Web] Cancelling download...");
+                    form.RestoreEpisode(downloader.current);
                     files.Remove(id);
                     form.ClearProgress();
                     callback.Cancel();
@@ -612,6 +725,9 @@ namespace AutoDownloader
 
                     AutoDownloader_9Animeid.Link l = downloader.current;
                     File.AppendAllText(Path.Combine(downloader.savePath, l.anime, (l.type == AutoDownloader_9Animeid.Type.subbed ? @"Sub" : @"Dub"), "autodownloader.ini"), l.episodeUrl + "?" + l.index + "?" + l.filler + "?" + l.episode + "\n");
+
+                    FileInfo fileInfo = new FileInfo(progress.filePath);
+                    fileInfo.MoveTo(Path.Combine(fileInfo.Directory.FullName, l.ToString()) + ".mp4");
 
                     form.DownloadControl(false);
 
