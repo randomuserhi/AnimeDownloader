@@ -29,6 +29,8 @@ Anime
 Note that `autodownloader.ini` is just some metadata for the program to use to keep track of what episodes you have downloaded already such that it does not fetch duplicate ones between runs.
 
 # Known Drawbacks
+- Only supports `9anime`.
+- Can't download other media (mangas).
 - Currently only works with `mp4Upload`, support for other mirrors may be added in the future.
 - Only works on windows due to reliance on `cefsharp`.
     - I am looking into making an android, ios and UWP version in xamarin
