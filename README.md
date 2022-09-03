@@ -1,3 +1,5 @@
+[Release](https://github.com/randomuserhi/AnimeDownloader/releases/tag/1.1.1)
+
 # AnimeDownloader
 A small browser to help download anime series from 9anime.id .
 
