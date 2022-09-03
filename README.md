@@ -1,7 +1,7 @@
-[Release](https://github.com/randomuserhi/AnimeDownloader/releases/tag/1.1.1)
-
 # AnimeDownloader
 A small browser to help download anime series from 9anime.id .
+
+[Get it here!](https://github.com/randomuserhi/AnimeDownloader/releases/tag/1.1.1)
 
 # How to use
 Select the anime of your choice in the browser on the left and click `Get Episodes` to get the list of episodes
