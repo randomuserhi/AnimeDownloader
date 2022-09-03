@@ -1,4 +1,6 @@
-﻿namespace AutoDownloader
+﻿using System;
+
+namespace AutoDownloader
 {
     partial class Form
     {
@@ -239,6 +241,9 @@
             this.Controls.Add(this.fetcher);
             this.Controls.Add(this.Debug);
             this.Controls.Add(this.browser);
+            this.MaximizeBox = false;
+            this.MaximumSize = new System.Drawing.Size(1498, 720);
+            this.MinimumSize = new System.Drawing.Size(1498, 720);
             this.Name = "Form";
             this.ResumeLayout(false);
             this.PerformLayout();
@@ -261,7 +266,7 @@
         private System.Windows.Forms.Label CurrentLabel;
         public System.Windows.Forms.Button Cancel;
         private System.Windows.Forms.Button RemoveEpisodes;
-        private System.Windows.Forms.TextBox SavePathLabel;
+        public System.Windows.Forms.TextBox SavePathLabel;
         private System.Windows.Forms.Button SelectAll;
         private System.Windows.Forms.Button Download;
         private System.Windows.Forms.Label label1;

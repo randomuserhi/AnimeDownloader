@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 using System.IO;
 using CefSharp;
 using CefSharp.WinForms;
+using System.Windows.Forms;
+using System.Threading;
 
 namespace AutoDownloader
 {
@@ -21,6 +23,7 @@ namespace AutoDownloader
         {
             public string id;
             public string fileName;
+            public string location;
             public string url;
             public bool completed;
             public bool cancelled;
@@ -36,10 +39,11 @@ namespace AutoDownloader
             public int index;
             public string episodeUrl;
             public Type type;
+            public bool filler;
 
             public override string ToString()
             {
-                return (type == Type.subbed ? "[Sub] " : "[Dub] ") + (index + 1) + (episode != string.Empty ? " - " + episode : string.Empty);
+                return (type == Type.subbed ? "[Sub] " : "[Dub] ") + (index + 1) + (filler ? " **Filler** " : string.Empty) + (episode != string.Empty ? " - " + episode : string.Empty);
             }
         }
 
@@ -115,7 +119,7 @@ namespace AutoDownloader
 
         public Form form;
 
-        public string savePath = String.Empty;
+        public string savePath = string.Empty;
 
         public AutoDownloader_9Animeid(Form form, ChromiumWebBrowser fetcher, ChromiumWebBrowser downloader)
         {
@@ -129,6 +133,71 @@ namespace AutoDownloader
 
             this.fetcher = fetcher;
             this.downloader = downloader;
+
+            LoadSettings();
+        }
+
+        static string settingsLocation = "settings.txt";
+        public void LoadSettings()
+        {
+            if (!File.Exists(settingsLocation)) return;
+
+            string[] lines = File.ReadAllLines(settingsLocation);
+            savePath = lines[0];
+            form.SavePathLabel.Text = savePath;
+
+            string[] sub = Directory.GetDirectories(savePath);
+            for (int i = 0; i < sub.Length; i++)
+            {
+                string path = Path.Combine(savePath, sub[i], @"Sub\autodownloader.ini");
+                if (File.Exists(path))
+                {
+                    string[] links = File.ReadAllLines(path);
+                    for (int j = 0; j < links.Length; j++)
+                    {
+                        if (!subbed.ContainsKey(links[j]))
+                        {
+                            string[] components = links[j].Split('?');
+                            subbed.Add(components[0], new Link()
+                            {
+                                anime = sub[i],
+                                index = int.Parse(components[1]),
+                                filler = components[2] == "true",
+                                episode = components[3],
+                                type = Type.subbed
+                            });
+                        }
+                    }
+                }
+
+                path = Path.Combine(savePath, sub[i], @"Dub\autodownloader.ini");
+                if (File.Exists(path))
+                {
+                    string[] links = File.ReadAllLines(path);
+                    for (int j = 0; j < links.Length; j++)
+                    {
+                        if (!subbed.ContainsKey(links[j]))
+                        {
+                            string[] components = links[j].Split('?');
+                            subbed.Add(components[0], new Link()
+                            {
+                                anime = sub[i],
+                                index = int.Parse(components[1]),
+                                filler = components[2] == "true",
+                                episode = components[3],
+                                type = Type.dubbed
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        public void SaveSettings()
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.AppendLine(savePath);
+            File.WriteAllText(settingsLocation, sb.ToString());
         }
 
         public Task active;
@@ -249,6 +318,9 @@ namespace AutoDownloader
                     form.Downloads.Items.Add(l);
                 }
             }
+
+            string key = downloads.files.Keys.ToArray()[0];
+            if (downloads.files[key].completed || downloads.files[key].cancelled) downloads.files.Remove(key);
         }
 
         private void Remove(Link l)
@@ -327,14 +399,18 @@ namespace AutoDownloader
             form.Log("[Get] Loading site...");
             await fetcher.LoadUrlAsync(url);
 
+            string tag = "<div class=\"episodes number\">";
+
             form.Log("[Get] Attempting to find episode listings...\n[Get] Attempt 1...");
             string html = await fetcher.GetSourceAsync();
-            int start = html.IndexOf("ep-range");
+            if (!html.Contains(tag)) tag = "<div class=\"episodes name\">";
+            int start = html.IndexOf(tag);
+            File.WriteAllText(@"D:\test.txt", html);
             for (int i = 0; i < 9 && start < 0; i++)
             {
                 form.Log("[Get] Attempt " + (i + 2) + "...");
                 html = await fetcher.GetSourceAsync();
-                start = html.IndexOf("ep-range");
+                start = html.IndexOf(tag);
                 await Task.Delay(1000);
             }
             if (start < 0)
@@ -370,56 +446,68 @@ namespace AutoDownloader
             int titleStart = html.IndexOf(titlePrefix) + titlePrefix.Length;
             int titleEnd = html.IndexOf(" Online in HD with English Subbed, Dubbed</title>");
             string anime = html.Substring(titleStart, titleEnd - titleStart);
+            var invalids = System.IO.Path.GetInvalidFileNameChars();
+            anime = String.Join("", anime.Split(invalids, StringSplitOptions.RemoveEmptyEntries)).TrimEnd('.');
 
             for (; html[start++] != '>';) { }
             string cut = html.Substring(start);
-            int end = cut.IndexOf("</ul>");
-            string episodes = cut.Substring(0, end);
+            int end = cut.IndexOf("</div>");
+            string subString = cut.Substring(0, end);
+            string[] sets = subString.Split(new[] { "</ul>" }, StringSplitOptions.RemoveEmptyEntries);
 
-            form.Log("[Get] Grabbing Links...");
-            string[] list = episodes.Split(new[] { "</li>" }, StringSplitOptions.RemoveEmptyEntries);
-            // -1 to remove the trailing </li> entry
+            form.Log("[Get] Found " + (sets.Length - 1) + " sets..."); 
+
             List<Link> links = new List<Link>();
-            for (int i = 0; i < list.Length - 1; i++)
+            int episodeIndex = 0;
+            for (int i = 0; i < sets.Length - 1; i++)
             {
-                StringBuilder episode = new StringBuilder();
-                int index = list[i].IndexOf("</span>");
-                if (index >= 0)
-                    for (char c = list[i][--index]; c != '>'; c = list[i][--index])
-                    {
-                        episode.Insert(0, c);
-                    }
+                string episodes = sets[i];
 
-                StringBuilder href = new StringBuilder();
-                string prefix = "href=\"";
-                index = list[i].IndexOf(prefix) + prefix.Length;
-                if (index >= 0)
-                    for (char c = list[i][index]; c != '"'; c = list[i][++index])
-                    {
-                        href.Append(c);
-                    }
-                string episodeUrl = href.ToString();
-
-                switch (type)
+                form.Log("[Get] Grabbing Links of set " + (i + 1) + "...");
+                string[] list = episodes.Split(new[] { "</li>" }, StringSplitOptions.RemoveEmptyEntries);
+                // -1 to remove the trailing </li> entry
+                for (int j = 0; j < list.Length - 1; j++, episodeIndex++)
                 {
-                    case Type.subbed:
-                        if (subbed.ContainsKey(episodeUrl)) continue;
-                        break;
-                    case Type.dubbed:
-                        if (dubbed.ContainsKey(episodeUrl)) continue;
-                        break;
-                    default:
-                        continue;
+                    StringBuilder episode = new StringBuilder();
+                    int index = list[j].IndexOf("</span>");
+                    if (index >= 0)
+                        for (char c = list[j][--index]; c != '>'; c = list[j][--index])
+                        {
+                            episode.Insert(0, c);
+                        }
+
+                    StringBuilder href = new StringBuilder();
+                    string prefix = "href=\"";
+                    index = list[j].IndexOf(prefix) + prefix.Length;
+                    if (index >= 0)
+                        for (char c = list[j][index]; c != '"'; c = list[j][++index])
+                        {
+                            href.Append(c);
+                        }
+                    string episodeUrl = href.ToString();
+
+                    switch (type)
+                    {
+                        case Type.subbed:
+                            if (subbed.ContainsKey(episodeUrl) || !list[j].Contains("data-sub=\"1\"")) continue;
+                            break;
+                        case Type.dubbed:
+                            if (dubbed.ContainsKey(episodeUrl) || !list[j].Contains("data-dub=\"1\"")) continue;
+                            break;
+                        default:
+                            continue;
+                    }
+
+                    links.Add(new Link()
+                    {
+                        anime = anime,
+                        episode = String.Join("", episode.ToString().Split(invalids, StringSplitOptions.RemoveEmptyEntries)).TrimEnd('.'),
+                        index = episodeIndex,
+                        episodeUrl = episodeUrl,
+                        filler = list[j].Contains("** Filler Episode **"),
+                        type = type
+                    });
                 }
-
-                links.Add(new Link()
-                {
-                    anime = anime,
-                    episode = episode.ToString(),
-                    index = i,
-                    episodeUrl = episodeUrl,
-                    type = type
-                });
             }
             form.Log("[Get] Finished.");
             return links.ToArray();
@@ -427,6 +515,8 @@ namespace AutoDownloader
     }
     public class DownloadManager : IDownloadHandler
     {
+        public object mutex = new object();
+
         private Form form;
         private AutoDownloader_9Animeid downloader;
         public Dictionary<string, AutoDownloader_9Animeid.DownloadProgress> files = new Dictionary<string, AutoDownloader_9Animeid.DownloadProgress>();
@@ -518,11 +608,18 @@ namespace AutoDownloader
 
                 if (downloadItem.IsComplete)
                 {
+                    form.Log("[Web] Download completed.");
+
+                    AutoDownloader_9Animeid.Link l = downloader.current;
+                    File.AppendAllText(Path.Combine(downloader.savePath, l.anime, (l.type == AutoDownloader_9Animeid.Type.subbed ? @"Sub" : @"Dub"), "autodownloader.ini"), l.episodeUrl + "?" + l.index + "?" + l.filler + "?" + l.episode + "\n");
+
+                    form.DownloadControl(false);
+
                     progress.completed = true;
                     progress.speed = 0;
-                    progress.percentage = 100;
+                    progress.percentage = 0;
                 }
-
+                
                 files[id] = progress;
                 form.SetProgress(progress);
             }

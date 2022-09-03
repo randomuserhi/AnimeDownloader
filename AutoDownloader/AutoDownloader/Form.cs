@@ -24,6 +24,8 @@ namespace AutoDownloader
      * Also this code ONLY supports 9anime.id
      */
 
+    //TODO:: Add a way for the program to know what episodes have already been installed on the system (create a json / dump file containing the information)
+
     public partial class Form : System.Windows.Forms.Form
     {
         AutoDownloader_9Animeid manager;
@@ -55,6 +57,11 @@ namespace AutoDownloader
             browser.Load("https://9anime.id/");
         }
 
+        protected override void OnClosed(EventArgs e)
+        {
+            manager.SaveSettings();
+        }
+
         [DllImport("user32.dll", CharSet = CharSet.Auto)]
         private static extern IntPtr SendMessage(IntPtr hWnd, int wMsg, IntPtr wParam, IntPtr lParam);
         private const int WM_VSCROLL = 277;
@@ -66,16 +73,15 @@ namespace AutoDownloader
         }
 
         private LinkedList<string> logs = new LinkedList<string>();
-        private int currentLog = 0;
-        public void Log(string value)
+        public void Log(string text)
         {
             if (InvokeRequired)
             {
-                this.Invoke(new Action<string>(Log), new object[] { value });
+                this.Invoke(new Action<string>(Log), new object[] { text });
                 return;
             }
 
-            logs.AddLast(value);
+            logs.AddLast(text);
             if (logs.Count > 150) logs.RemoveFirst();
 
             StringBuilder sb = new StringBuilder();
@@ -187,6 +193,7 @@ namespace AutoDownloader
             manager.AddEpisodes(links, (AutoDownloader_9Animeid.Type)Type.SelectedIndex);
         }
 
+        //TODO:: make it such that this re-adds them to the add list as long as the current episode list is from the same anime
         private void RemoveEpisodes_Click(object sender, EventArgs e)
         {
             AutoDownloader_9Animeid.Link[] links = new AutoDownloader_9Animeid.Link[Downloads.SelectedIndices.Count];
