@@ -31,6 +31,7 @@ Anime
 Note that `autodownloader.ini` is just some metadata for the program to use to keep track of what episodes you have downloaded already such that it does not fetch duplicate ones between runs.
 
 # Known Drawbacks
+- No in-app player (Can't preview anime on the in-app browser)
 - Only supports `9anime`.
 - Can't download other media (mangas).
 - Currently only works with `mp4Upload`, support for other mirrors may be added in the future.
