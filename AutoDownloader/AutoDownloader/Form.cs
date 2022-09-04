@@ -104,7 +104,7 @@ namespace AutoDownloader
             CheckForUpdates();
         }
 
-        private string version = "Auto Downloader 1.2.2";
+        private string version = "Auto Downloader 1.2.3";
         public void CheckForUpdates()
         {
             Log("[Manager] Checking for updates...");
@@ -268,7 +268,7 @@ namespace AutoDownloader
             }
 
             CurrentProgress.Value = progress.percentage;
-            CurrentLabel.Text = "bytes: " + progress.speed + "\n\nFilename: " + progress.fileName + "\n\nLocation: " + progress.filePath + "\n\nURL: " + progress.url + "\n\nOriginal file name: " + progress.id;
+            CurrentLabel.Text = progress.percentage + " %\ncompleted: " + progress.completed + "\nbytes: " + progress.speed + "\n\nFilename: " + progress.fileName + "\n\nLocation: " + progress.filePath + "\n\nURL: " + progress.url + "\n\nOriginal file name: " + progress.id;
         }
 
         public void EnableGetEpisodes()

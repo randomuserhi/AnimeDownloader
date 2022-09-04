@@ -1,5 +1,4 @@
-Auto Downloader 1.2.2
+Auto Downloader 1.2.3
 
 Bug Fixes:
-- Fixed a bug where newer updates won't show after "don't show" checkbox is ticked
-- Fixed a bug where change log wouldn't show
+- Fixed a bug where next download in queue would not start after first download

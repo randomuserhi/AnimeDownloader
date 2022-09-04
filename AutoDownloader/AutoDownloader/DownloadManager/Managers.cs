@@ -815,9 +815,11 @@ namespace AutoDownloader
                     progress.completed = true;
                     progress.speed = 0;
                     progress.percentage = 0;
+
+                    files.Remove(id);
                 }
-                
-                files[id] = progress;
+                else files[id] = progress;
+
                 form.SetProgress(progress);
                 form.DownloadControl(true);
             }
