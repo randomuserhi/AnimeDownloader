@@ -20,15 +20,15 @@ namespace AutoDownloader
 
         Form form;
 
-        public UpdateForm(Form form, bool realUpdate = true)
+        public UpdateForm(Form form, string[] text, bool realUpdate = true)
         {
             this.form = form;
             InitializeComponent();
 
-            FileInfo fileInfo = new FileInfo(@"updateInfo-web.temp");
-            fileInfo.CopyTo(Path.Combine(fileInfo.Directory.FullName, @"updateInfo.temp"), true);
+            FileInfo fileInfo = new FileInfo(@"updateInfo.temp");
+            fileInfo.CopyTo(Path.Combine(fileInfo.Directory.FullName, @"updateInfo.update"), true);
 
-            ChangeLog.Text = File.ReadAllText(@"updateInfo-web.temp");
+            ChangeLog.Text = string.Join("\n", text);
             SetForegroundWindow(Handle.ToInt32());
 
             if (!realUpdate)

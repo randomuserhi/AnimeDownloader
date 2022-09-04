@@ -104,6 +104,7 @@ namespace AutoDownloader
             CheckForUpdates();
         }
 
+        private string version = "Auto Downloader 1.2.2";
         public void CheckForUpdates()
         {
             Log("[Manager] Checking for updates...");
@@ -112,35 +113,40 @@ namespace AutoDownloader
                 wc.Headers.Add("a", "a");
                 try
                 {
-                    wc.DownloadFile("https://raw.githubusercontent.com/randomuserhi/AnimeDownloader/main/updateInfo.update", @"updateInfo-web.temp");
-                    if (File.Exists("updateInfo.update"))
+                    wc.DownloadFile("https://raw.githubusercontent.com/randomuserhi/AnimeDownloader/main/updateInfo.update", @"updateInfo.temp");
+                    string[] updateInfo_temp = File.ReadAllLines("updateInfo.temp");
+                    if (!File.Exists("updateInfo.update"))
                     {
-                        if (File.Exists("updateInfo.temp"))
+                        Log("[Manager] Unable to find update info, grabbing from web...");
+                        FileInfo fileInfo = new FileInfo(@"updateInfo.temp");
+                        fileInfo.CopyTo(Path.Combine(fileInfo.Directory.FullName, @"updateInfo.update"));
+
+                        if (version == updateInfo_temp[0])
                         {
-                            if (!File.ReadAllBytes(@"updateInfo-web.temp").SequenceEqual(File.ReadAllBytes(@"updateInfo.temp")))
-                            {
-                                Log("[Manager] An update is available!");
-                                UpdateForm updateForm = new UpdateForm(this);
-                                updateForm.ShowDialog();
-                                return;
-                            }
+                            UpdateForm updateForm = new UpdateForm(this, updateInfo_temp, false);
+                            updateForm.ShowDialog();
+                            return;
                         }
-                        
-                        if (!File.ReadAllBytes(@"updateInfo.temp").SequenceEqual(File.ReadAllBytes(@"updateInfo.update")))
+                    }
+
+                    if (File.Exists("updateInfo.temp"))
+                    {
+                        string[] updateInfo_update = File.ReadAllLines("updateInfo.update");
+                        if (version != updateInfo_temp[0] && updateInfo_temp[0] != updateInfo_update[0])
+                        {
+                            Log("[Manager] An update is available!");
+                            UpdateForm updateForm = new UpdateForm(this, updateInfo_temp);
+                            updateForm.ShowDialog();
+                        }
+                        else if (version != updateInfo_update[0])
                         {
                             Log("[Manager] An update is available!");
                             if (!checkUpdates) return;
-                            UpdateForm updateForm = new UpdateForm(this);
+                            UpdateForm updateForm = new UpdateForm(this, updateInfo_temp);
                             updateForm.ShowDialog();
                         }
-                    }
-                    else
-                    {
-                        Log("[Manager] Unable to find update info, grabbing from web and assuming on latest...");
-                        UpdateForm updateForm = new UpdateForm(this, false);
-                        FileInfo fileInfo = new FileInfo(@"updateInfo-web.temp");
-                        fileInfo.MoveTo(Path.Combine(fileInfo.Directory.FullName, @"updateInfo.update"));
-                        updateForm.ShowDialog();
+                        else
+                            Log("[Manager] No updates found.");
                     }
                 }
                 catch (Exception err)
