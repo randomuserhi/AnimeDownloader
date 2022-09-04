@@ -15,6 +15,10 @@ using System.Diagnostics;
 using System.Net;
 using System.Security.Policy;
 using System.Threading;
+using System.Text.Json;
+using System.IO.Compression;
+using CefSharp.DevTools.IO;
+using System.Text.Json.Nodes;
 
 namespace AutoDownloader
 {
@@ -29,12 +33,18 @@ namespace AutoDownloader
      * Also this code ONLY supports 9anime.id
      */
 
-    //TODO:: Add a way for the program to know what episodes have already been installed on the system (create a json / dump file containing the information)
+    public struct UpdateData
+    {
+        public string version { get; set; }
+        public string url { get; set; }
+        public string changeLog { get; set; }
+    }
 
     public partial class Form : System.Windows.Forms.Form
     {
-        AutoDownloader_9Animeid manager;
-        private Version version = new Version("1.2.9");
+        public AutoDownloader_9Animeid manager;
+        private Version version = new Version("1.3.0");
+        public Version hidden;
 
         public class ScrollingText
         {
@@ -79,17 +89,17 @@ namespace AutoDownloader
         public bool enqueueing = false;
         private System.Windows.Forms.Timer loop = new System.Windows.Forms.Timer();
 
-        StreamWriter logStream;
+        public StreamWriter logStream;
 
-        public int subbedDubbed = 0;
-        public bool checkUpdates = true;
         public Form()
         {
             InitializeComponent();
 
+            if (!Directory.Exists("custom")) Directory.CreateDirectory("custom");
+
             Text = "Auto Downloader " + version;
-            File.WriteAllText("mainLog.txt", Text + "\n");
-            logStream = File.AppendText("mainLog.txt");
+            File.WriteAllText(@"custom\mainLog.txt", Text + "\n");
+            logStream = File.AppendText(@"custom\mainLog.txt");
 
             CurrentProgress.Minimum = 0;
             CurrentProgress.Maximum = 100;
@@ -112,6 +122,7 @@ namespace AutoDownloader
             browser.Load("https://9anime.id/");
 
             CheckForUpdates();
+            EpisodeControl(true);
         }
 
         private Version GetVersion(string v)
@@ -126,46 +137,34 @@ namespace AutoDownloader
                 wc.Headers.Add("a", "a");
                 try
                 {
-                    wc.DownloadFile("https://raw.githubusercontent.com/randomuserhi/AnimeDownloader/main/updateInfo.update", @"updateInfo.temp");
-                    string[] updateInfo_temp = File.ReadAllLines("updateInfo.temp");
-                    if (!File.Exists("updateInfo.update"))
+                    string apiUrl = "https://api.github.com/repos/randomuserhi/AnimeDownloader/releases";
+                    wc.Headers.Add("user-agent", "Anything");
+                    wc.DownloadFile(apiUrl, @"custom\releases.dat");
+                    JsonArray releases = JsonNode.Parse(File.ReadAllText(@"custom\releases.dat")).AsArray();
+                    UpdateData updateData = new UpdateData()
                     {
-                        Log("[Manager] Unable to find update info, grabbing from web...");
-                        FileInfo fileInfo = new FileInfo(@"updateInfo.temp");
-                        fileInfo.CopyTo(Path.Combine(fileInfo.Directory.FullName, @"updateInfo.update"));
-                    }
-
-                    if (File.Exists("updateInfo.temp"))
+                        version = (string)releases[0]["tag_name"],
+                        url = (string)releases[0]["assets"][0]["browser_download_url"],
+                        changeLog = (string)releases[0]["body"]
+                    };
+                    Version latest = new Version(updateData.version);
+                    if (new Version(manager.settings.hidden) != latest || manager.settings.showUpdates)
                     {
-                        string[] updateInfo_update = File.ReadAllLines("updateInfo.update");
-                        Version latest = GetVersion(updateInfo_temp[0]);
-                        Version previous = GetVersion(updateInfo_update[0]);
-                        if (version < latest && latest != previous)
+                        if (version < latest)
                         {
-
-                            Log("[Manager] An update is available!");
-                            UpdateForm updateForm = new UpdateForm(this, updateInfo_temp);
-                            updateForm.ShowDialog();
-                        }
-                        else if (version < previous)
-                        {
-                            Log("[Manager] An update is available!");
-                            if (!checkUpdates) return;
-                            UpdateForm updateForm = new UpdateForm(this, updateInfo_temp);
+                            UpdateForm updateForm = new UpdateForm(this, updateData.version, updateData);
                             updateForm.ShowDialog();
                         }
                         else if (version == latest)
                         {
                             Log("[Manager] No updates found.");
-                            if (!checkUpdates) return;
-                            UpdateForm updateForm = new UpdateForm(this, updateInfo_temp, false);
+
+                            UpdateForm updateForm = new UpdateForm(this, updateData.version, updateData, true);
                             updateForm.ShowDialog();
                         }
                         else
-                            Log("[Manager] No updates found.");
+                            Log("[Manager] Pre-release version.");
                     }
-                    else
-                        Log("[Manager] Unable to find updateInfo.temp .");
                 }
                 catch (Exception err)
                 {
@@ -187,7 +186,7 @@ namespace AutoDownloader
         private static extern IntPtr SendMessage(IntPtr hWnd, int wMsg, IntPtr wParam, IntPtr lParam);
         private const int WM_VSCROLL = 277;
         private const int SB_PAGEBOTTOM = 7;
-        internal static void ScrollToBottom(RichTextBox richTextBox)
+        public static void ScrollToBottom(RichTextBox richTextBox)
         {
             SendMessage(richTextBox.Handle, WM_VSCROLL, (IntPtr)SB_PAGEBOTTOM, IntPtr.Zero);
             richTextBox.SelectionStart = richTextBox.Text.Length;
@@ -232,8 +231,8 @@ namespace AutoDownloader
             if (enabled)
             {
                 currentAnimeScroll.Text = currentAnime;
-                SubbedButton.Enabled = subbedDubbed == 0;
-                DubbedButton.Enabled = subbedDubbed == 1;
+                SubbedButton.Enabled = manager.settings.activeType != AutoDownloader_9Animeid.Type.subbed;
+                DubbedButton.Enabled = manager.settings.activeType != AutoDownloader_9Animeid.Type.dubbed;
             }
             else
             {
@@ -319,7 +318,7 @@ namespace AutoDownloader
             if (getEpisodesCT == null)
             {
                 getEpisodesCT = new CancellationTokenSource();
-                manager.GetEpisodes(getEpisodesCT.Token, browser.Address, (AutoDownloader_9Animeid.Type)subbedDubbed).ContinueWith(result =>
+                manager.GetEpisodes(getEpisodesCT.Token, browser.Address, manager.settings.activeType).ContinueWith(result =>
                 {
                     if (result.Result != null)
                     {
@@ -414,7 +413,7 @@ namespace AutoDownloader
                 Episodes.Items.Remove(links[i]);
                 Downloads.Items.Add(links[i]);
             }
-            manager.AddEpisodes(links, (AutoDownloader_9Animeid.Type)subbedDubbed);
+            manager.AddEpisodes(links, manager.settings.activeType);
         }
 
         public void SetQueue(AutoDownloader_9Animeid.Link? link)
@@ -487,12 +486,12 @@ namespace AutoDownloader
             manager.RemoveEpisodes(links);
         }
 
-        private int lastType = 0;
+        private AutoDownloader_9Animeid.Type lastType = AutoDownloader_9Animeid.Type.dubbed;
         private void Type_SelectedIndexChanged(object sender, EventArgs e)
         {
-            if (lastType != subbedDubbed)
+            if (lastType != manager.settings.activeType)
             {
-                lastType = subbedDubbed;
+                lastType = manager.settings.activeType;
                 Episodes.Items.Clear();
             }
         }
@@ -507,7 +506,7 @@ namespace AutoDownloader
 
             if (Download.Text == "Start Queue")
             {
-                if (manager.savePath == string.Empty)
+                if (manager.settings.savePath == string.Empty)
                 {
                     if (MessageBox.Show("No Download path specified, are you sure you want to continue? Your episodes will save in the same directory as the application.", "No Download path", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
                     {
@@ -541,11 +540,11 @@ namespace AutoDownloader
         private void BrowseSavePath_Click(object sender, EventArgs e)
         {
             var dlg = new FolderPicker();
-            dlg.InputPath = manager.savePath == String.Empty ? Application.StartupPath : manager.savePath;
+            dlg.InputPath = manager.settings.savePath == String.Empty ? Application.StartupPath : manager.settings.savePath;
             if (dlg.ShowDialog(IntPtr.Zero) == true)
             {
                 SavePathLabel.Text = dlg.ResultPath;
-                manager.savePath = dlg.ResultPath;
+                manager.settings.savePath = dlg.ResultPath;
                 manager.CheckAnimes();
             }
 
@@ -556,14 +555,14 @@ namespace AutoDownloader
         {
             SubbedButton.Enabled = false;
             DubbedButton.Enabled = true;
-            subbedDubbed = 1;
+            manager.settings.activeType = AutoDownloader_9Animeid.Type.subbed;
         }
 
         private void DubbedButton_Click(object sender, EventArgs e)
         {
             SubbedButton.Enabled = true;
             DubbedButton.Enabled = false;
-            subbedDubbed = 0;
+            manager.settings.activeType = AutoDownloader_9Animeid.Type.dubbed;
         }
 
         private void Episodes_SelectedValueChanged(object sender, EventArgs e)

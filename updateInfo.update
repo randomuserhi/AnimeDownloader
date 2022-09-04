@@ -1,4 +1,5 @@
-Auto Downloader 1.2.9
+Auto Downloader 1.3.0
 
 New Features:
-- Changed .ini files to be in Json format
+- Changed everything to use Json
+- Can now download updates in-app

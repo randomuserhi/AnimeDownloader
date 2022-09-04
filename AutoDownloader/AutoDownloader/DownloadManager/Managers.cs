@@ -14,6 +14,7 @@ using System.Security.Policy;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Diagnostics;
 
 namespace AutoDownloader
 {
@@ -176,10 +177,8 @@ namespace AutoDownloader
 
         public Form form;
 
-        public string savePath = string.Empty;
-
-        static string queueLocation = "queue.txt";
-        static string settingsLocation = "settings.txt";
+        static string queueLocation = @"custom\queue.txt";
+        static string settingsLocation = @"custom\settings.txt";
 
         public AutoDownloader_9Animeid(Form form, ChromiumWebBrowser fetcher, ChromiumWebBrowser downloader)
         {
@@ -203,13 +202,10 @@ namespace AutoDownloader
             form.Log("[Manager] Saving queue...");
             try
             {
-                StringBuilder data = new StringBuilder();
-                if (current != null) data.AppendLine(current.Value.Serialize());
-                foreach (Link l in queue)
-                {
-                    data.AppendLine(l.Serialize());
-                }
-                File.WriteAllText(queueLocation, data.ToString());
+                List<Link> links = new List<Link>();
+                if (current != null) links.Add(current.Value);
+                foreach (Link l in queue) links.Add(l);
+                File.WriteAllText(queueLocation, JsonSerializer.Serialize(links));
             }
             catch (Exception err)
             {
@@ -221,12 +217,7 @@ namespace AutoDownloader
         public void SaveSettings()
         {
             form.Log("[Manager] Saving settings.txt ...");
-
-            StringBuilder sb = new StringBuilder();
-            sb.AppendLine(savePath);
-            sb.AppendLine("" + form.subbedDubbed);
-            sb.AppendLine((form.checkUpdates ? 1 : 0).ToString());
-            File.WriteAllText(settingsLocation, sb.ToString());
+            File.WriteAllText(settingsLocation, JsonSerializer.Serialize(settings));
         }
 
         public void SaveAll()
@@ -246,29 +237,26 @@ namespace AutoDownloader
             try
             {
                 form.Log("[Manager] Reading queue.txt ...");
-                string[] lines = File.ReadAllLines(queueLocation);
+                List<Link> links = JsonSerializer.Deserialize<List<Link>>(File.ReadAllText(queueLocation));
 
-                for (int i = 0; i < lines.Length; i++)
+                for (int i = 0; i < links.Count; i++)
                 {
-                    Link l;
-                    if (Link.TryDeserialize(lines[i], out l))
+                    Link l = links[i];
+                    switch (l.type)
                     {
-                        switch (l.type)
-                        {
-                            case Type.subbed:
-                                if (!subbed.ContainsKey(l.episodeUrl)) subbed.Add(l.episodeUrl, l);
-                                else continue;
-                                break;
-                            case Type.dubbed:
-                                if (!dubbed.ContainsKey(l.episodeUrl)) dubbed.Add(l.episodeUrl, l);
-                                else continue;
-                                break;
-                            default:
-                                continue;
-                        }
-                        form.Downloads.Items.Add(l);
-                        queue.AddLast(l);
+                        case Type.subbed:
+                            if (!subbed.ContainsKey(l.episodeUrl)) subbed.Add(l.episodeUrl, l);
+                            else continue;
+                            break;
+                        case Type.dubbed:
+                            if (!dubbed.ContainsKey(l.episodeUrl)) dubbed.Add(l.episodeUrl, l);
+                            else continue;
+                            break;
+                        default:
+                            continue;
                     }
+                    form.Downloads.Items.Add(l);
+                    queue.AddLast(l);
                 }
             }
             catch (Exception err)
@@ -279,8 +267,30 @@ namespace AutoDownloader
             }
         }
 
+        public struct Settings
+        {
+            public string savePath { get; set; }
+            public Type activeType { get; set; }
+            public bool showUpdates { get; set; }
+            public string hidden { get; set; }
+
+            public static Settings GetDefault()
+            {
+                return new Settings()
+                {
+                    savePath = string.Empty,
+                    activeType = Type.dubbed,
+                    showUpdates = true,
+                    hidden = "0.0.0"
+                };
+            }
+        }
+        public Settings settings;
+
         private void LoadSettings()
         {
+            settings = Settings.GetDefault();
+            
             form.Log("[Manager] Loading settings.txt ...");
             if (!File.Exists(settingsLocation))
             {
@@ -290,23 +300,21 @@ namespace AutoDownloader
             try
             {
                 form.Log("[Manager] Reading settings.txt ...");
-                string[] lines = File.ReadAllLines(settingsLocation);
+                settings = JsonSerializer.Deserialize<Settings>(File.ReadAllText(settingsLocation));
 
-                if (!Directory.Exists(lines[0])) lines[0] = string.Empty;
-                savePath = lines[0];
-                form.SavePathLabel.Text = savePath;
-                form.subbedDubbed = int.Parse(lines[1]);
-                form.SubbedButton.Enabled = form.subbedDubbed == 0;
-                form.DubbedButton.Enabled = form.subbedDubbed == 1;
-                form.checkUpdates = int.Parse(lines[2]) == 1;
-                if (savePath == string.Empty) return;
+                if (!Directory.Exists(settings.savePath)) settings.savePath = string.Empty;
+                form.SavePathLabel.Text = settings.savePath;
+                if (settings.hidden == string.Empty) settings.hidden = "0.0.0";
+                if (settings.savePath == string.Empty) return;
                 CheckAnimes();
             }
             catch (Exception err)
             {
+                settings = Settings.GetDefault();
+                File.Delete(settingsLocation);
+
                 form.Log("[Manager] Unable to load old settings.txt (May have been invalidated by an update), removing...");
                 form.Log("[Manager : WARNING] " + err.Message);
-                File.Delete(settingsLocation);
             }
         }
         public void CheckAnimes()
@@ -315,12 +323,12 @@ namespace AutoDownloader
             dubbed.Clear();
 
             form.Log("[Manager] Checking anime folder...");
-            string[] directories = Directory.GetDirectories(savePath);
+            string[] directories = Directory.GetDirectories(settings.savePath);
             List<Link> foundLinks = new List<Link>();
             for (int i = 0; i < directories.Length; i++)
             {
-                foundLinks.AddRange(LoadEpisodes(subbed, Type.subbed, Path.Combine(savePath, directories[i], @"Sub\autodownloader.ini")));
-                foundLinks.AddRange(LoadEpisodes(dubbed, Type.dubbed, Path.Combine(savePath, directories[i], @"Dub\autodownloader.ini")));
+                foundLinks.AddRange(LoadEpisodes(subbed, Type.subbed, Path.Combine(settings.savePath, directories[i], @"Sub\autodownloader.ini")));
+                foundLinks.AddRange(LoadEpisodes(dubbed, Type.dubbed, Path.Combine(settings.savePath, directories[i], @"Dub\autodownloader.ini")));
             }
             form.RestoreEpisodesFromListings(foundLinks);
             form.Log("[Manager] Finished.");
@@ -329,16 +337,15 @@ namespace AutoDownloader
         {
             if (File.Exists(filePath))
             {
-                string[] data = VerifyMetaFile(filePath, type);
-                if (data == null)
+                metadata_1_0_4? metadata = VerifyMetaFile(filePath, type);
+                if (metadata == null)
                 {
                     form.Log("[Manager] autodownloader.ini failed verification..." + filePath);
                     return new Link[0];
                 }
                 try
                 {
-                    metadata_1_0_4 metadata = JsonSerializer.Deserialize<metadata_1_0_4>(data[0]);
-                    Link[] links = metadata.links;
+                    Link[] links = metadata.Value.links;
                     for (int i = 0; i < links.Length; i++)
                     {
                         Link l = links[i];
@@ -352,7 +359,7 @@ namespace AutoDownloader
                                 break;
                         }
                     }
-                    return metadata.links;
+                    return metadata.Value.links;
                 }
                 catch (Exception err)
                 {
@@ -363,32 +370,34 @@ namespace AutoDownloader
             return new Link[0];
         }
 
-        public Version version = new Version("1.0.3");
+        public Version version = new Version("1.0.4");
         private struct metadata_1_0_4
         {
             public string version { get; set; }
             public string anime { get; set; }
             public Link[] links { get; set; }
         }
-        private string[] VerifyMetaFile(string filePath, Type type) //TODO:: change this such that it works by altering the previous version's file as opposed to this shoddy clear and rewrite method
+        private metadata_1_0_4? VerifyMetaFile(string filePath, Type type) //TODO:: change this such that it works by altering the previous version's file as opposed to this shoddy clear and rewrite method
         {
             try
             {
                 StringBuilder edits = new StringBuilder();
                 FileInfo fileInfo = new FileInfo(filePath);
-                string[] lines = File.ReadAllLines(filePath);
-                string[] header = lines[0].Split('?');
+                string raw = File.ReadAllText(filePath);
 
                 try
                 {
-                    metadata_1_0_4 metadata = JsonSerializer.Deserialize<metadata_1_0_4>(lines[0]);
-                    return lines;
+                    metadata_1_0_4 metadata = JsonSerializer.Deserialize<metadata_1_0_4>(raw);
+                    return metadata;
                 }
                 catch (Exception err)
                 {
                     form.Log("[Manager] " + filePath + " failed to deserialize, checking version...");
                     form.Log("[Manager : WARNING] " + err.Message);
                 }
+
+                string[] lines = File.ReadAllLines(filePath);
+                string[] header = lines[0].Split('?');
 
                 if (header.Length != 2)
                 {
@@ -522,9 +531,8 @@ namespace AutoDownloader
                     }
                 }
 
-                if (edits.Length > 0) File.WriteAllText(filePath, edits.ToString());
-
-                return File.ReadAllLines(filePath);
+                File.WriteAllText(filePath, raw);
+                return JsonSerializer.Deserialize<metadata_1_0_4>(raw);
             }
             catch (Exception err)
             {
@@ -957,7 +965,7 @@ namespace AutoDownloader
                 {
                     id = id,
                     fileName = manager.current.ToString() + ".mp4",
-                    savePath = manager.savePath,
+                    savePath = manager.settings.savePath,
                     url = url,
                     completed = false,
                     cancelled = false,
@@ -1029,7 +1037,7 @@ namespace AutoDownloader
                         form.RestoreEpisodeToQueue(manager.current.Value);
                         manager.queue.AddFirst(manager.current.Value);
                     }
-                    else if (progress.savePath == manager.savePath) form.RestoreEpisode(manager.current.Value);
+                    else if (progress.savePath == manager.settings.savePath) form.RestoreEpisode(manager.current.Value);
                     files.Remove(id);
                     manager.current = null;
                     form.ClearProgress();
