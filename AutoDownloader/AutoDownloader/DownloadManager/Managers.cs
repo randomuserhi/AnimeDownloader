@@ -33,6 +33,7 @@ namespace AutoDownloader
             public string url;
             public bool completed;
             public bool cancelled;
+            public bool acknowledged;
 
             public long speed;
             public int percentage;
@@ -367,6 +368,8 @@ namespace AutoDownloader
             }
             return foundLinks;
         }
+
+        public Version version = new Version("1.0.2");
         private string[] VerifyMetaFile(string filePath, Type type)
         {
             try
@@ -375,6 +378,7 @@ namespace AutoDownloader
                 FileInfo fileInfo = new FileInfo(filePath);
                 string[] lines = File.ReadAllLines(filePath);
                 string[] header = lines[0].Split('?');
+                int start = 2;
 
                 if (header.Length != 2)
                 {
@@ -386,6 +390,7 @@ namespace AutoDownloader
                         header[0] = "1.0.0";
                         edits.AppendLine(fileInfo.Directory.Parent.Name);
                         for (int i = 0; i < lines.Length; i++) edits.AppendLine(lines[i]);
+                        start = 0;
                     }
                     catch (Exception err)
                     {
@@ -396,7 +401,6 @@ namespace AutoDownloader
                     }
                 }
 
-                Version version = new Version("1.0.2");
                 Version currentVersion;
                 if (Version.TryParse(header[0], out currentVersion))
                 {
@@ -414,7 +418,7 @@ namespace AutoDownloader
 
                                 edits.AppendLine(version + "?");
                                 edits.AppendLine(fileInfo.Directory.Parent.Name);
-                                for (int i = 2; i < lines.Length; i++)
+                                for (int i = start; i < lines.Length; i++)
                                 {
                                     List<string> components = new List<string>(lines[i].Split('?'));
                                     components.Add(((int)type).ToString());
@@ -430,7 +434,7 @@ namespace AutoDownloader
 
                                 edits.AppendLine(version + "?");
                                 edits.AppendLine(fileInfo.Directory.Parent.Name);
-                                for (int i = 2; i < lines.Length; i++)
+                                for (int i = start; i < lines.Length; i++)
                                 {
                                     List<string> components = new List<string>(lines[i].Split('?'));
                                     components.Add(fileInfo.Directory.Parent.Name);
@@ -583,6 +587,10 @@ namespace AutoDownloader
                     }
                     if (downloads.files.Count != 0)
                     {
+                        string key = downloads.files.Keys.First();
+                        DownloadProgress progress = downloads.files[key];
+                        progress.acknowledged = true;
+                        downloads.files[key] = progress;
                         form.Log("[Enqueue] Download started successfully!");
                     }
                     else
@@ -837,7 +845,8 @@ namespace AutoDownloader
                     savePath = manager.savePath,
                     url = url,
                     completed = false,
-                    cancelled = false
+                    cancelled = false,
+                    acknowledged = false
                 };
                 files.Add(id, progress);
 
@@ -896,6 +905,7 @@ namespace AutoDownloader
                 }
 
                 AutoDownloader_9Animeid.DownloadProgress progress = files[id];
+                if (!progress.acknowledged) return;
                 if (progress.cancelled)
                 {
                     form.Log("[Web] Cancelling download...");
@@ -919,7 +929,10 @@ namespace AutoDownloader
                     form.Log("[Web] Download completed.");
 
                     AutoDownloader_9Animeid.Link l = manager.current.Value;
-                    File.AppendAllText(Path.Combine(progress.savePath, l.anime, (l.type == AutoDownloader_9Animeid.Type.subbed ? @"Sub" : @"Dub"), "autodownloader.ini"), l.Serialize() + "\n");
+                    string autodownloader = Path.Combine(progress.savePath, l.anime, (l.type == AutoDownloader_9Animeid.Type.subbed ? @"Sub" : @"Dub"), "autodownloader.ini");
+                    if (!File.Exists(autodownloader)) File.WriteAllText(autodownloader, manager.version + "?\n" + l.anime + "\n");
+                    File.AppendAllText(autodownloader, l.Serialize() + "\n");
+
 
                     FileInfo fileInfo = new FileInfo(progress.filePath);
                     fileInfo.MoveTo(Path.Combine(fileInfo.Directory.FullName, l.ToString() + ".mp4"));

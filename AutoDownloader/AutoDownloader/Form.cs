@@ -34,6 +34,7 @@ namespace AutoDownloader
     public partial class Form : System.Windows.Forms.Form
     {
         AutoDownloader_9Animeid manager;
+        private Version version = new Version("1.2.6");
 
         public class ScrollingText
         {
@@ -76,6 +77,8 @@ namespace AutoDownloader
 
         System.Windows.Forms.Timer loop = new System.Windows.Forms.Timer();
 
+        StreamWriter logStream;
+
         public int subbedDubbed = 0;
         public bool checkUpdates = true;
         public Form()
@@ -83,6 +86,8 @@ namespace AutoDownloader
             InitializeComponent();
 
             Text = "Auto Downloader " + version;
+            File.WriteAllText("mainLog.txt", Text + "\n");
+            logStream = File.AppendText("mainLog.txt");
 
             CurrentProgress.Minimum = 0;
             CurrentProgress.Maximum = 100;
@@ -106,7 +111,6 @@ namespace AutoDownloader
             CheckForUpdates();
         }
 
-        private Version version = new Version("1.2.4");
         private Version GetVersion(string v)
         {
             return new Version(v.Split(new[] { "Auto Downloader " }, StringSplitOptions.RemoveEmptyEntries)[0]);
@@ -170,6 +174,9 @@ namespace AutoDownloader
 
         protected override void OnClosed(EventArgs e)
         {
+            logStream.Close();
+            logStream.Dispose();
+            logStream = null;
             manager.SaveAll();
         }
 
@@ -192,6 +199,7 @@ namespace AutoDownloader
                 return;
             }
 
+            if (logStream != null) logStream.WriteLine(text);
             logs.AddLast(text);
             if (logs.Count > 150) logs.RemoveFirst();
 
@@ -272,14 +280,22 @@ namespace AutoDownloader
 
         public void SetProgress(AutoDownloader_9Animeid.DownloadProgress progress)
         {
-            if (InvokeRequired)
+            try
             {
-                this.Invoke(new Action<AutoDownloader_9Animeid.DownloadProgress>(SetProgress), new object[] { progress });
-                return;
-            }
+                if (InvokeRequired)
+                {
+                    this.Invoke(new Action<AutoDownloader_9Animeid.DownloadProgress>(SetProgress), new object[] { progress });
+                    return;
+                }
 
-            CurrentProgress.Value = progress.percentage;
-            CurrentLabel.Text = progress.percentage + " %\ncompleted: " + progress.completed + "\nbytes: " + progress.speed + "\n\nFilename: " + progress.fileName + "\n\nLocation: " + progress.filePath + "\n\nURL: " + progress.url + "\n\nOriginal file name: " + progress.id;
+                CurrentProgress.Value = progress.percentage;
+                CurrentLabel.Text = progress.percentage + " %\ncompleted: " + progress.completed + "\nbytes: " + progress.speed + "\n\nFilename: " + progress.fileName + "\n\nLocation: " + progress.filePath + "\n\nURL: " + progress.url + "\n\nOriginal file name: " + progress.id;
+            }
+            catch (Exception err)
+            {
+                Log("[Manager] Failed to set progress...");
+                Log("[Manager : WARNING] " + err.Message);
+            }
         }
 
         public void EnableGetEpisodes()
