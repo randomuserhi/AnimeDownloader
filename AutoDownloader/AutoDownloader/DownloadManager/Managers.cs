@@ -54,8 +54,6 @@ namespace AutoDownloader
                 string[] components = token.Split('?');
                 try
                 {
-                    if (components.Any(s => s == string.Empty)) return false;
-
                     l = new Link()
                     {
                         episodeUrl = components[0],
@@ -469,7 +467,6 @@ namespace AutoDownloader
 
                                 success = true;
                             }
-
                             if (!success)
                             {
                                 form.Log("[Manager] Failed to update " + filePath + " for " + filePath);
