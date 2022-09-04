@@ -1,5 +1,4 @@
-Auto Downloader 1.2.8
+Auto Downloader 1.2.9
 
 New Features:
-- Ability to cancel enqueueing process
-- Shows episode current being enqueued
+- Changed .ini files to be in Json format

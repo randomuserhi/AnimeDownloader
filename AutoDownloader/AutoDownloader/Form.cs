@@ -34,7 +34,7 @@ namespace AutoDownloader
     public partial class Form : System.Windows.Forms.Form
     {
         AutoDownloader_9Animeid manager;
-        private Version version = new Version("1.2.8");
+        private Version version = new Version("1.2.9");
 
         public class ScrollingText
         {

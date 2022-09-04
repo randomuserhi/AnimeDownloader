@@ -12,6 +12,8 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security.Policy;
 using System.Reflection;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace AutoDownloader
 {
@@ -41,12 +43,12 @@ namespace AutoDownloader
 
         public struct Link
         {
-            public string anime;
-            public string episode;
-            public int index;
-            public string episodeUrl;
-            public Type type;
-            public bool filler;
+            public string anime { get; set; }
+            public string episode { get; set; }
+            public int index { get; set; }
+            public string episodeUrl { get; set; }
+            public Type type { get; set; }
+            public bool filler { get; set; }
 
             public static bool TryDeserialize(string token, out Link l)
             {
@@ -323,40 +325,34 @@ namespace AutoDownloader
             form.RestoreEpisodesFromListings(foundLinks);
             form.Log("[Manager] Finished.");
         }
-        private List<Link> LoadEpisodes(Dictionary<string, Link> database, Type type, string filePath)
+        private Link[] LoadEpisodes(Dictionary<string, Link> database, Type type, string filePath)
         {
-            List<Link> foundLinks = new List<Link>();
             if (File.Exists(filePath))
             {
                 string[] data = VerifyMetaFile(filePath, type);
                 if (data == null)
                 {
                     form.Log("[Manager] autodownloader.ini failed verification..." + filePath);
-                    return foundLinks;
+                    return new Link[0];
                 }
                 try
                 {
-                    for (int j = 2; j < data.Length; j++)
+                    metadata_1_0_4 metadata = JsonSerializer.Deserialize<metadata_1_0_4>(data[0]);
+                    Link[] links = metadata.links;
+                    for (int i = 0; i < links.Length; i++)
                     {
-                        try
+                        Link l = links[i];
+                        switch (links[i].type)
                         {
-                            if (!database.ContainsKey(data[j]))
-                            {
-                                Link l;
-                                if (Link.TryDeserialize(data[j], out l))
-                                {
-                                    foundLinks.Add(l);
-                                    if (!database.ContainsKey(l.episodeUrl))
-                                        database.Add(l.episodeUrl, l);
-                                }
-                            }
-                        }
-                        catch (Exception err)
-                        {
-                            form.Log("[Manager] Failed to load episode for " + filePath);
-                            form.Log("[Manager : FATAL ERROR] " + err.Message);
+                            case Type.subbed:
+                                if (!subbed.ContainsKey(l.episodeUrl)) subbed.Add(l.episodeUrl, l);
+                                break;
+                            case Type.dubbed:
+                                if (!dubbed.ContainsKey(l.episodeUrl)) dubbed.Add(l.episodeUrl, l);
+                                break;
                         }
                     }
+                    return metadata.links;
                 }
                 catch (Exception err)
                 {
@@ -364,10 +360,16 @@ namespace AutoDownloader
                     form.Log("[Manager : FATAL ERROR] " + err.Message);
                 }
             }
-            return foundLinks;
+            return new Link[0];
         }
 
         public Version version = new Version("1.0.3");
+        private struct metadata_1_0_4
+        {
+            public string version { get; set; }
+            public string anime { get; set; }
+            public Link[] links { get; set; }
+        }
         private string[] VerifyMetaFile(string filePath, Type type) //TODO:: change this such that it works by altering the previous version's file as opposed to this shoddy clear and rewrite method
         {
             try
@@ -376,7 +378,17 @@ namespace AutoDownloader
                 FileInfo fileInfo = new FileInfo(filePath);
                 string[] lines = File.ReadAllLines(filePath);
                 string[] header = lines[0].Split('?');
-                int start = 2;
+
+                try
+                {
+                    metadata_1_0_4 metadata = JsonSerializer.Deserialize<metadata_1_0_4>(lines[0]);
+                    return lines;
+                }
+                catch (Exception err)
+                {
+                    form.Log("[Manager] " + filePath + " failed to deserialize, checking version...");
+                    form.Log("[Manager : WARNING] " + err.Message);
+                }
 
                 if (header.Length != 2)
                 {
@@ -388,7 +400,8 @@ namespace AutoDownloader
                         header[0] = "1.0.0";
                         edits.AppendLine(fileInfo.Directory.Parent.Name);
                         for (int i = 0; i < lines.Length; i++) edits.AppendLine(lines[i]);
-                        start = 0;
+
+                        lines = edits.ToString().Split(Environment.NewLine.ToCharArray(), StringSplitOptions.RemoveEmptyEntries);
                     }
                     catch (Exception err)
                     {
@@ -404,6 +417,7 @@ namespace AutoDownloader
                 {
                     if (currentVersion != version)
                     {
+                        // https://9anime.id/watch/aggretsuko.zx2p/ep-1?0?False?
                         form.Log("[Manager] " + filePath + " is an old version...");
                         try
                         {
@@ -414,32 +428,35 @@ namespace AutoDownloader
                                 currentVersion = new Version("1.0.1");
                                 edits.Clear();
 
-                                edits.AppendLine(version + "?");
+                                edits.AppendLine(currentVersion + "?");
                                 edits.AppendLine(fileInfo.Directory.Parent.Name);
-                                for (int i = start; i < lines.Length; i++)
+                                for (int i = 2; i < lines.Length; i++)
                                 {
                                     List<string> components = new List<string>(lines[i].Split('?'));
                                     components.Add(((int)type).ToString());
                                     edits.AppendLine(string.Join("?", components));
                                 }
 
+                                form.Log("[Manager] Updated to " + currentVersion);
+                                lines = edits.ToString().Split(Environment.NewLine.ToCharArray(), StringSplitOptions.RemoveEmptyEntries);
                                 success = true;
                             }
                             if (currentVersion == new Version("1.0.1"))
                             {
-                                currentVersion = new Version("1.0.2");
+                                currentVersion = new Version("1.0.3");
                                 edits.Clear();
 
-                                edits.AppendLine(version + "?");
+                                edits.AppendLine(currentVersion + "?");
                                 edits.AppendLine(fileInfo.Directory.Parent.Name);
-                                for (int i = start; i < lines.Length; i++)
+                                for (int i = 2; i < lines.Length; i++)
                                 {
                                     List<string> components = new List<string>(lines[i].Split('?'));
-                                    components.Add(((int)type).ToString());
                                     components.Add(fileInfo.Directory.Parent.Name);
                                     edits.AppendLine(string.Join("?", components));
                                 }
 
+                                form.Log("[Manager] Updated to " + currentVersion);
+                                lines = edits.ToString().Split(Environment.NewLine.ToCharArray(), StringSplitOptions.RemoveEmptyEntries);
                                 success = true;
                             }
                             if (currentVersion == new Version("1.0.2"))
@@ -447,24 +464,44 @@ namespace AutoDownloader
                                 currentVersion = new Version("1.0.3");
                                 edits.Clear();
 
-                                edits.AppendLine(version + "?");
-                                edits.AppendLine(fileInfo.Directory.Parent.Name);
-                                for (int i = start; i < lines.Length; i++)
+                                edits.AppendLine(currentVersion + "?");
+                                for (int i = 1; i < lines.Length; i++)
                                 {
-                                    List<string> components = new List<string>(lines[i].Split('?'));
-                                    if (components.Count != 6)
-                                    {
-                                        components.RemoveAt(components.Count - 1);
-                                        components.Add(((int)type).ToString());
-                                        components.Add(fileInfo.Directory.Parent.Name);
-                                        edits.AppendLine(string.Join("?", components));
-                                    }
+                                    edits.AppendLine(lines[i]);
+                                }
+
+                                form.Log("[Manager] Updated to " + currentVersion);
+                                lines = edits.ToString().Split(Environment.NewLine.ToCharArray(), StringSplitOptions.RemoveEmptyEntries);
+                                success = true;
+                            }
+                            string jsonString = string.Empty;
+                            if (currentVersion == new Version("1.0.3"))
+                            {
+                                currentVersion = new Version("1.0.4");
+
+                                metadata_1_0_4 data = new metadata_1_0_4()
+                                {
+                                    version = currentVersion.ToString(),
+                                    anime = fileInfo.Directory.Parent.Name,
+                                    links = new Link[lines.Length - 2]
+                                };
+                                for (int i = 2; i < lines.Length; i++)
+                                {
+                                    Link l;
+                                    if (Link.TryDeserialize(lines[i], out l))
+                                        data.links[i - 2] = l;
                                     else
                                     {
-                                        edits.AppendLine(string.Join("?", components));
+                                        form.Log("[Manager] Failed to updated to " + currentVersion);
+                                        form.Log("[Manager : FATAL ERROR] Unable to deserialize a link.");
+                                        return null;
                                     }
                                 }
 
+                                jsonString = JsonSerializer.Serialize(data);
+                                edits.Clear();
+                                edits.Append(jsonString);
+                                form.Log("[Manager] Updated to " + currentVersion);
                                 success = true;
                             }
                             if (!success)
