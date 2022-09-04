@@ -1,4 +1,7 @@
-Auto Downloader 1.2.3
+Auto Downloader 1.2.4
+
+New Features:
+- Now shows version in title
 
 Bug Fixes:
-- Fixed a bug where next download in queue would not start after first download
+- Fixed a bug where change log wouldn't show sometimes

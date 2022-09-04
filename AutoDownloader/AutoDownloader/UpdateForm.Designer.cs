@@ -66,7 +66,7 @@
             // DontShow
             // 
             this.DontShow.AutoSize = true;
-            this.DontShow.Location = new System.Drawing.Point(258, 265);
+            this.DontShow.Location = new System.Drawing.Point(339, 265);
             this.DontShow.Name = "DontShow";
             this.DontShow.Size = new System.Drawing.Size(106, 17);
             this.DontShow.TabIndex = 27;
@@ -75,7 +75,7 @@
             // 
             // Continue
             // 
-            this.Continue.Location = new System.Drawing.Point(370, 261);
+            this.Continue.Location = new System.Drawing.Point(258, 261);
             this.Continue.Name = "Continue";
             this.Continue.Size = new System.Drawing.Size(75, 23);
             this.Continue.TabIndex = 28;

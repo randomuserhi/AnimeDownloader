@@ -82,6 +82,8 @@ namespace AutoDownloader
         {
             InitializeComponent();
 
+            Text = "Auto Downloader " + version;
+
             CurrentProgress.Minimum = 0;
             CurrentProgress.Maximum = 100;
 
@@ -104,7 +106,11 @@ namespace AutoDownloader
             CheckForUpdates();
         }
 
-        private string version = "Auto Downloader 1.2.3";
+        private Version version = new Version("1.2.4");
+        private Version GetVersion(string v)
+        {
+            return new Version(v.Split(new[] { "Auto Downloader " }, StringSplitOptions.RemoveEmptyEntries)[0]);
+        }
         public void CheckForUpdates()
         {
             Log("[Manager] Checking for updates...");
@@ -120,34 +126,39 @@ namespace AutoDownloader
                         Log("[Manager] Unable to find update info, grabbing from web...");
                         FileInfo fileInfo = new FileInfo(@"updateInfo.temp");
                         fileInfo.CopyTo(Path.Combine(fileInfo.Directory.FullName, @"updateInfo.update"));
-
-                        if (version == updateInfo_temp[0])
-                        {
-                            UpdateForm updateForm = new UpdateForm(this, updateInfo_temp, false);
-                            updateForm.ShowDialog();
-                            return;
-                        }
                     }
 
                     if (File.Exists("updateInfo.temp"))
                     {
                         string[] updateInfo_update = File.ReadAllLines("updateInfo.update");
-                        if (version != updateInfo_temp[0] && updateInfo_temp[0] != updateInfo_update[0])
+                        Version latest = GetVersion(updateInfo_temp[0]);
+                        Version previous = GetVersion(updateInfo_update[0]);
+                        if (version < latest && latest != previous)
                         {
+
                             Log("[Manager] An update is available!");
                             UpdateForm updateForm = new UpdateForm(this, updateInfo_temp);
                             updateForm.ShowDialog();
                         }
-                        else if (version != updateInfo_update[0])
+                        else if (version < previous)
                         {
                             Log("[Manager] An update is available!");
                             if (!checkUpdates) return;
                             UpdateForm updateForm = new UpdateForm(this, updateInfo_temp);
                             updateForm.ShowDialog();
                         }
+                        else if (version == latest)
+                        {
+                            Log("[Manager] No updates found.");
+                            if (!checkUpdates) return;
+                            UpdateForm updateForm = new UpdateForm(this, updateInfo_temp, false);
+                            updateForm.ShowDialog();
+                        }
                         else
                             Log("[Manager] No updates found.");
                     }
+                    else
+                        Log("[Manager] Unable to find updateInfo.temp .");
                 }
                 catch (Exception err)
                 {
