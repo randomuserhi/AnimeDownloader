@@ -1,1 +1,10 @@
-- Test
+Auto Downloader 1.2.0
+
+New Features:
+- Now has an update checker!
+- Will now update autodownloader.ini files if versions don't align
+- Will update listings at real time when a new anime folder is loaded
+- You can now cancel getting episodes
+
+Bug Fixes:
+- Fixed a bug where cancelled downloads would loop continuously

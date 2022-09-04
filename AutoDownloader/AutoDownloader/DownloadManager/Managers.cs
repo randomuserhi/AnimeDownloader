@@ -9,9 +9,50 @@ using CefSharp.WinForms;
 using System.Windows.Forms;
 using System.Threading;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using System.Security.Policy;
 
 namespace AutoDownloader
 {
+    public static class Utils
+    {
+        // https://stackoverflow.com/questions/4359910/how-to-abort-a-task-like-aborting-a-thread-thread-abort-method
+        public static T RunWithAbort<T>(this Func<T> func, int milliseconds) => RunWithAbort(func, new TimeSpan(0, 0, 0, 0, milliseconds));
+        public static T RunWithAbort<T>(this Func<T> func, TimeSpan delay)
+        {
+            if (func == null)
+                throw new ArgumentNullException(nameof(func));
+
+            var source = new CancellationTokenSource(delay);
+            var item = default(T);
+            var handle = IntPtr.Zero;
+            var fn = new Action(() =>
+            {
+                using (source.Token.Register(() => TerminateThread(handle, 0)))
+                {
+                    item = func();
+                }
+            });
+
+            handle = CreateThread(IntPtr.Zero, IntPtr.Zero, fn, IntPtr.Zero, 0, out var id);
+            WaitForSingleObject(handle, 100 + (int)delay.TotalMilliseconds);
+            CloseHandle(handle);
+            return item;
+        }
+
+        [DllImport("kernel32")]
+        private static extern bool TerminateThread(IntPtr hThread, int dwExitCode);
+
+        [DllImport("kernel32")]
+        private static extern IntPtr CreateThread(IntPtr lpThreadAttributes, IntPtr dwStackSize, Delegate lpStartAddress, IntPtr lpParameter, int dwCreationFlags, out int lpThreadId);
+
+        [DllImport("kernel32")]
+        private static extern bool CloseHandle(IntPtr hObject);
+
+        [DllImport("kernel32")]
+        private static extern int WaitForSingleObject(IntPtr hHandle, int dwMilliseconds);
+    }
+
     public class AutoDownloader_9Animeid
     {
         public enum Type
@@ -50,12 +91,12 @@ namespace AutoDownloader
 
             public static bool operator ==(Link a, Link b)
             {
-                return (a.anime == b.anime) && (a.episode == b.episode) && (a.index == b.index);
+                return (a.type == b.type) && (a.anime == b.anime) && (a.episode == b.episode) && (a.index == b.index);
             }
 
             public static bool operator !=(Link a, Link b)
             {
-                return (a.anime != b.anime) || (a.episode != b.episode) || (a.index != b.index);
+                return (a.type != b.type) || (a.anime != b.anime) || (a.episode != b.episode) || (a.index != b.index);
             }
 
             public override bool Equals(object o)
@@ -192,18 +233,21 @@ namespace AutoDownloader
         }
         public void CheckAnimes()
         {
+            subbed.Clear();
+            dubbed.Clear();
+
             form.Log("[Manager] Checking anime folder...");
             string[] directories = Directory.GetDirectories(savePath);
             List<Link> foundLinks = new List<Link>();
             for (int i = 0; i < directories.Length; i++)
             {
-                foundLinks.AddRange(LoadEpisodes(subbed, Path.Combine(savePath, directories[i], @"Sub\autodownloader.ini")));
-                foundLinks.AddRange(LoadEpisodes(dubbed, Path.Combine(savePath, directories[i], @"Dub\autodownloader.ini")));
+                foundLinks.AddRange(LoadEpisodes(subbed, Type.subbed, Path.Combine(savePath, directories[i], @"Sub\autodownloader.ini")));
+                foundLinks.AddRange(LoadEpisodes(dubbed, Type.dubbed, Path.Combine(savePath, directories[i], @"Dub\autodownloader.ini")));
             }
             form.RestoreEpisodesFromListings(foundLinks);
             form.Log("[Manager] Finished.");
         }
-        private List<Link> LoadEpisodes(Dictionary<string, Link> database, string filePath)
+        private List<Link> LoadEpisodes(Dictionary<string, Link> database, Type type, string filePath)
         {
             List<Link> foundLinks = new List<Link>();
             if (File.Exists(filePath))
@@ -230,7 +274,7 @@ namespace AutoDownloader
                                     index = int.Parse(components[1]),
                                     filler = components[2] == "true",
                                     episode = components[3],
-                                    type = Type.subbed
+                                    type = type
                                 };
                                 foundLinks.Add(l);
                                 if (!database.ContainsKey(components[0]))
@@ -336,7 +380,12 @@ namespace AutoDownloader
                     }
 
                     form.Log("[Enqueue] Loading URL...");
-                    await downloader.LoadUrlAsync(l.episodeUrl);
+                    LoadUrlAsyncResponse resp = await downloader.LoadUrlAsync(l.episodeUrl);
+                    if (!resp.Success)
+                    {
+                        form.Log("[Enqueue] Browser timed out, aborting...");
+                        return;
+                    }
 
                     form.Log("[Enqueue] Attempting to load Mp4Upload video...\n[Enqueue] Attempt 1...");
                     string script = string.Empty;
@@ -381,7 +430,12 @@ namespace AutoDownloader
                     }
 
                     form.Log("[Enqueue] Found Mp4 video, " + downloadLink.ToString() + "\n[Enqueue] Attempting to load Mp4Upload embed...\n[Enqueue] Attempt 1...");
-                    await downloader.LoadUrlAsync(downloadLink.ToString());
+                    resp = await downloader.LoadUrlAsync(downloadLink.ToString());
+                    if (!resp.Success)
+                    {
+                        form.Log("[Enqueue] Browser timed out, aborting...");
+                        return;
+                    }
 
                     downloader.ExecuteScriptAsync(Scripts.RedirectMp4UploadLink);
                     html = await downloader.GetSourceAsync();
@@ -498,124 +552,143 @@ namespace AutoDownloader
         }
 
         public string currentAnime = string.Empty;
-        public async Task<Link[]> GetEpisodes(string url, Type type)
+        public async Task<Link[]> GetEpisodes(CancellationToken ct, string url, Type type)
         {
-            form.Log("[Get] Loading site...");
-            await fetcher.LoadUrlAsync(url);
-
-            string tag = "<div class=\"episodes number\">";
-
-            form.Log("[Get] Attempting to find episode listings...\n[Get] Attempt 1...");
-            string html = await fetcher.GetSourceAsync();
-            if (!html.Contains(tag)) tag = "<div class=\"episodes name\">";
-            int start = html.IndexOf(tag);
-            //File.WriteAllText(@"D:\test.txt", html);
-            for (int i = 0; i < 9 && start < 0; i++)
+            try
             {
-                form.Log("[Get] Attempt " + (i + 2) + "...");
-                html = await fetcher.GetSourceAsync();
-                start = html.IndexOf(tag);
-                await Task.Delay(1000);
-            }
-            if (start < 0)
-            {
-                form.Log("[Get] Failed to find episode listings.");
-                return new Link[0];
-            }
+                // Were we already canceled?
+                ct.ThrowIfCancellationRequested();
 
-            form.Log("[Get] Succeeded, checking for sub / dub...");
-            switch (type)
-            {
-                case Type.subbed:
-                    if (!html.Contains("data-type=\"sub\""))
-                    {
-                        form.Log("[Get] No subs available.");
-                        return new Link[0];
-                    }
-                    break;
-                case Type.dubbed:
-                    if (!html.Contains("data-type=\"dub\""))
-                    {
-                        form.Log("[Get] No dubs available.");
-                        return new Link[0];
-                    }
-                    break;
-                default:
-                    form.Log("[Get] No subs or dubs available.");
-                    return new Link[0];
-            }
-
-            form.Log("[Get] Finding title...");
-            string titlePrefix = "<title>Watch ";
-            int titleStart = html.IndexOf(titlePrefix) + titlePrefix.Length;
-            int titleEnd = html.IndexOf(" Online in HD with English Subbed, Dubbed</title>");
-            string anime = html.Substring(titleStart, titleEnd - titleStart);
-            var invalids = System.IO.Path.GetInvalidFileNameChars();
-            anime = String.Join("", anime.Split(invalids, StringSplitOptions.RemoveEmptyEntries)).TrimEnd('.');
-
-            for (; html[start++] != '>';) { }
-            string cut = html.Substring(start);
-            int end = cut.IndexOf("</div>");
-            string subString = cut.Substring(0, end);
-            string[] sets = subString.Split(new[] { "</ul>" }, StringSplitOptions.RemoveEmptyEntries);
-
-            form.Log("[Get] Found " + (sets.Length - 1) + " sets..."); 
-
-            List<Link> links = new List<Link>();
-            int episodeIndex = 0;
-            for (int i = 0; i < sets.Length - 1; i++)
-            {
-                string episodes = sets[i];
-
-                form.Log("[Get] Grabbing Links of set " + (i + 1) + "...");
-                string[] list = episodes.Split(new[] { "</li>" }, StringSplitOptions.RemoveEmptyEntries);
-                // -1 to remove the trailing </li> entry
-                for (int j = 0; j < list.Length - 1; j++, episodeIndex++)
+                form.Log("[Get] Loading site...");
+                LoadUrlAsyncResponse resp = await fetcher.LoadUrlAsync(url);
+                if (!resp.Success)
                 {
-                    StringBuilder episode = new StringBuilder();
-                    int index = list[j].IndexOf("</span>");
-                    if (index >= 0)
-                        for (char c = list[j][--index]; c != '>'; c = list[j][--index])
-                        {
-                            episode.Insert(0, c);
-                        }
-
-                    StringBuilder href = new StringBuilder();
-                    string prefix = "href=\"";
-                    index = list[j].IndexOf(prefix) + prefix.Length;
-                    if (index >= 0)
-                        for (char c = list[j][index]; c != '"'; c = list[j][++index])
-                        {
-                            href.Append(c);
-                        }
-                    string episodeUrl = href.ToString();
-
-                    switch (type)
-                    {
-                        case Type.subbed:
-                            if (subbed.ContainsKey(episodeUrl) || !list[j].Contains("data-sub=\"1\"")) continue;
-                            break;
-                        case Type.dubbed:
-                            if (dubbed.ContainsKey(episodeUrl) || !list[j].Contains("data-dub=\"1\"")) continue;
-                            break;
-                        default:
-                            continue;
-                    }
-
-                    links.Add(new Link()
-                    {
-                        anime = anime,
-                        episode = String.Join("", episode.ToString().Split(invalids, StringSplitOptions.RemoveEmptyEntries)).TrimEnd('.'),
-                        index = episodeIndex,
-                        episodeUrl = episodeUrl,
-                        filler = list[j].Contains("** Filler Episode **"),
-                        type = type
-                    });
+                    form.Log("[Get] Browser timed out, aborting...");
+                    return null;
                 }
+                ct.ThrowIfCancellationRequested();
+
+                string tag = "<div class=\"episodes number\">";
+
+                form.Log("[Get] Attempting to find episode listings...\n[Get] Attempt 1...");
+                string html = await fetcher.GetSourceAsync();
+                if (!html.Contains(tag)) tag = "<div class=\"episodes name\">";
+                int start = html.IndexOf(tag);
+                //File.WriteAllText(@"D:\test.txt", html);
+                for (int i = 0; i < 9 && start < 0; i++)
+                {
+                    ct.ThrowIfCancellationRequested();
+
+                    form.Log("[Get] Attempt " + (i + 2) + "...");
+                    html = await fetcher.GetSourceAsync();
+                    start = html.IndexOf(tag);
+                    await Task.Delay(1000);
+                }
+                if (start < 0)
+                {
+                    form.Log("[Get] Failed to find episode listings.");
+                    return null;
+                }
+
+                form.Log("[Get] Succeeded, checking for sub / dub...");
+                switch (type)
+                {
+                    case Type.subbed:
+                        if (!html.Contains("data-type=\"sub\""))
+                        {
+                            form.Log("[Get] No subs available.");
+                            return null;
+                        }
+                        break;
+                    case Type.dubbed:
+                        if (!html.Contains("data-type=\"dub\""))
+                        {
+                            form.Log("[Get] No dubs available.");
+                            return null;
+                        }
+                        break;
+                    default:
+                        form.Log("[Get] No subs or dubs available.");
+                        return null;
+                }
+
+                form.Log("[Get] Finding title...");
+                string titlePrefix = "<title>Watch ";
+                int titleStart = html.IndexOf(titlePrefix) + titlePrefix.Length;
+                int titleEnd = html.IndexOf(" Online in HD with English Subbed, Dubbed</title>");
+                string anime = html.Substring(titleStart, titleEnd - titleStart);
+                var invalids = System.IO.Path.GetInvalidFileNameChars();
+                anime = String.Join("", anime.Split(invalids, StringSplitOptions.RemoveEmptyEntries)).TrimEnd('.');
+
+                for (; html[start++] != '>';) { }
+                string cut = html.Substring(start);
+                int end = cut.IndexOf("</div>");
+                string subString = cut.Substring(0, end);
+                string[] sets = subString.Split(new[] { "</ul>" }, StringSplitOptions.RemoveEmptyEntries);
+
+                form.Log("[Get] Found " + (sets.Length - 1) + " sets...");
+
+                List<Link> links = new List<Link>();
+                int episodeIndex = 0;
+                for (int i = 0; i < sets.Length - 1; i++)
+                {
+                    string episodes = sets[i];
+
+                    form.Log("[Get] Grabbing Links of set " + (i + 1) + "...");
+                    string[] list = episodes.Split(new[] { "</li>" }, StringSplitOptions.RemoveEmptyEntries);
+                    // -1 to remove the trailing </li> entry
+                    for (int j = 0; j < list.Length - 1; j++, episodeIndex++)
+                    {
+                        StringBuilder episode = new StringBuilder();
+                        int index = list[j].IndexOf("</span>");
+                        if (index >= 0)
+                            for (char c = list[j][--index]; c != '>'; c = list[j][--index])
+                            {
+                                episode.Insert(0, c);
+                            }
+
+                        StringBuilder href = new StringBuilder();
+                        string prefix = "href=\"";
+                        index = list[j].IndexOf(prefix) + prefix.Length;
+                        if (index >= 0)
+                            for (char c = list[j][index]; c != '"'; c = list[j][++index])
+                            {
+                                href.Append(c);
+                            }
+                        string episodeUrl = href.ToString();
+
+                        switch (type)
+                        {
+                            case Type.subbed:
+                                if (subbed.ContainsKey(episodeUrl) || !list[j].Contains("data-sub=\"1\"")) continue;
+                                break;
+                            case Type.dubbed:
+                                if (dubbed.ContainsKey(episodeUrl) || !list[j].Contains("data-dub=\"1\"")) continue;
+                                break;
+                            default:
+                                continue;
+                        }
+
+                        links.Add(new Link()
+                        {
+                            anime = anime,
+                            episode = String.Join("", episode.ToString().Split(invalids, StringSplitOptions.RemoveEmptyEntries)).TrimEnd('.'),
+                            index = episodeIndex,
+                            episodeUrl = episodeUrl,
+                            filler = list[j].Contains("** Filler Episode **"),
+                            type = type
+                        });
+                    }
+                }
+                form.Log("[Get] Finished.");
+                currentAnime = anime;
+                return links.ToArray();
             }
-            form.Log("[Get] Finished.");
-            currentAnime = anime;
-            return links.ToArray();
+            catch(OperationCanceledException)
+            {
+                form.Log("[Get] Cancelling...");
+                return null;
+            }
         }
     }
     public class DownloadManager : IDownloadHandler

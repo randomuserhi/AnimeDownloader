@@ -32,6 +32,7 @@
             this.label2 = new System.Windows.Forms.Label();
             this.DownloadUpdate = new System.Windows.Forms.Button();
             this.DontShow = new System.Windows.Forms.CheckBox();
+            this.Continue = new System.Windows.Forms.Button();
             this.SuspendLayout();
             // 
             // ChangeLog
@@ -54,9 +55,9 @@
             // 
             // DownloadUpdate
             // 
-            this.DownloadUpdate.Location = new System.Drawing.Point(116, 261);
+            this.DownloadUpdate.Location = new System.Drawing.Point(124, 261);
             this.DownloadUpdate.Name = "DownloadUpdate";
-            this.DownloadUpdate.Size = new System.Drawing.Size(329, 23);
+            this.DownloadUpdate.Size = new System.Drawing.Size(240, 23);
             this.DownloadUpdate.TabIndex = 26;
             this.DownloadUpdate.Text = "Update now";
             this.DownloadUpdate.UseVisualStyleBackColor = true;
@@ -67,16 +68,27 @@
             this.DontShow.AutoSize = true;
             this.DontShow.Location = new System.Drawing.Point(12, 265);
             this.DontShow.Name = "DontShow";
-            this.DontShow.Size = new System.Drawing.Size(98, 17);
+            this.DontShow.Size = new System.Drawing.Size(106, 17);
             this.DontShow.TabIndex = 27;
-            this.DontShow.Text = "Dont ask again";
+            this.DontShow.Text = "Dont show again";
             this.DontShow.UseVisualStyleBackColor = true;
+            // 
+            // Continue
+            // 
+            this.Continue.Location = new System.Drawing.Point(370, 261);
+            this.Continue.Name = "Continue";
+            this.Continue.Size = new System.Drawing.Size(75, 23);
+            this.Continue.TabIndex = 28;
+            this.Continue.Text = "Continue";
+            this.Continue.UseVisualStyleBackColor = true;
+            this.Continue.Click += new System.EventHandler(this.Continue_Click);
             // 
             // UpdateForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(457, 296);
+            this.Controls.Add(this.Continue);
             this.Controls.Add(this.DontShow);
             this.Controls.Add(this.DownloadUpdate);
             this.Controls.Add(this.label2);
@@ -85,15 +97,7 @@
             this.MinimumSize = new System.Drawing.Size(473, 335);
             this.Name = "UpdateForm";
             this.Text = "A new update is available!";
-            this.Controls.SetChildIndex(this.Downloads, 0);
-            this.Controls.SetChildIndex(this.Cancel, 0);
-            this.Controls.SetChildIndex(this.SavePathLabel, 0);
-            this.Controls.SetChildIndex(this.DubbedButton, 0);
-            this.Controls.SetChildIndex(this.SubbedButton, 0);
-            this.Controls.SetChildIndex(this.ChangeLog, 0);
-            this.Controls.SetChildIndex(this.label2, 0);
-            this.Controls.SetChildIndex(this.DownloadUpdate, 0);
-            this.Controls.SetChildIndex(this.DontShow, 0);
+            this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.UpdateForm_FormClosing);
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -105,5 +109,6 @@
         private System.Windows.Forms.Label label2;
         private System.Windows.Forms.Button DownloadUpdate;
         private System.Windows.Forms.CheckBox DontShow;
+        private System.Windows.Forms.Button Continue;
     }
 }

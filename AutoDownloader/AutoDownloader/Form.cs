@@ -13,6 +13,8 @@ using System.Runtime.InteropServices;
 using System.CodeDom.Compiler;
 using System.Diagnostics;
 using System.Net;
+using System.Security.Policy;
+using System.Threading;
 
 namespace AutoDownloader
 {
@@ -45,7 +47,7 @@ namespace AutoDownloader
                 }
             }
             StringBuilder rollingText = new StringBuilder();
-            Timer scrollingText = new Timer();
+            System.Windows.Forms.Timer scrollingText = new System.Windows.Forms.Timer();
 
             TextBox container;
 
@@ -72,7 +74,7 @@ namespace AutoDownloader
         ScrollingText currentAnimeScroll;
         ScrollingText selectionScroll;
 
-        Timer loop = new Timer();
+        System.Windows.Forms.Timer loop = new System.Windows.Forms.Timer();
 
         public int subbedDubbed = 0;
         public bool checkUpdates = true;
@@ -87,7 +89,6 @@ namespace AutoDownloader
             currentAnimeLabel.Text = string.Empty;
 
             manager = new AutoDownloader_9Animeid(this, fetcher, downloader);
-            if (checkUpdates) CheckForUpdates();
 
             currentAnimeScroll = new ScrollingText(currentAnimeLabel);
             selectionScroll = new ScrollingText(CurrentSelection);
@@ -99,9 +100,11 @@ namespace AutoDownloader
 
             browser.LifeSpanHandler = new PopupManager();
             browser.Load("https://9anime.id/");
+
+            CheckForUpdates();
         }
 
-        private void CheckForUpdates()
+        public void CheckForUpdates()
         {
             Log("[Manager] Checking for updates...");
             using (WebClient wc = new WebClient())
@@ -114,16 +117,19 @@ namespace AutoDownloader
                     {
                         if (!File.ReadAllBytes(@"updateInfo.temp").SequenceEqual(File.ReadAllBytes(@"updateInfo.update")))
                         {
-                            Log("[Manager] Found an update...");
-                            UpdateForm updateForm = new UpdateForm(File.ReadAllText(@"updateInfo.temp"));
+                            Log("[Manager] An update is available!");
+                            if (!checkUpdates) return;
+                            UpdateForm updateForm = new UpdateForm(this);
                             updateForm.ShowDialog();
                         }
                     }
                     else
                     {
                         Log("[Manager] Unable to find update info, grabbing from web and assuming on latest...");
+                        UpdateForm updateForm = new UpdateForm(this, false);
                         FileInfo fileInfo = new FileInfo(@"updateInfo.temp");
                         fileInfo.MoveTo(Path.Combine(fileInfo.Directory.FullName, @"updateInfo.update"));
+                        updateForm.ShowDialog();
                     }
                 }
                 catch (Exception err)
@@ -182,7 +188,6 @@ namespace AutoDownloader
             if (set) episodeControl = enabled;
             currentAnimeLabel.Text = currentAnime;
 
-            GetEpisodes.Enabled = enabled;
             AddEpisodes.Enabled = enabled;
             Episodes.Enabled = enabled;
             if (enabled)
@@ -251,16 +256,50 @@ namespace AutoDownloader
             CurrentLabel.Text = "bytes: " + progress.speed + "\n\nFilename: " + progress.fileName + "\n\nURL: " + progress.url + "\n\nOriginal file name: " + progress.id;
         }
 
+        public void EnableGetEpisodes()
+        {
+            if (InvokeRequired)
+            {
+                this.Invoke(new Action(EnableGetEpisodes), new object[] { });
+                return;
+            }
+
+            GetEpisodes.Enabled = true;
+        }
+
+        CancellationTokenSource getEpisodesCT;
         private void GetEpisodes_Click(object sender, EventArgs e)
         {
-            manager.GetEpisodes(browser.Address, (AutoDownloader_9Animeid.Type)subbedDubbed).ContinueWith(result =>
+            if (getEpisodesCT == null)
             {
-                currentAnime = manager.currentAnime;
-                EpisodeControl(true);
-                SetEpisodes(result.Result);
-            });
+                getEpisodesCT = new CancellationTokenSource();
+                manager.GetEpisodes(getEpisodesCT.Token, browser.Address, (AutoDownloader_9Animeid.Type)subbedDubbed).ContinueWith(result =>
+                {
+                    if (result.Result != null)
+                    {
+                        currentAnime = manager.currentAnime;
+                        SetEpisodes(result.Result);
+                    }
+                    else
+                    {
+                        getEpisodesCT.Dispose();
+                        getEpisodesCT = null;
+                        EnableGetEpisodes();
+                    }
+                    EpisodeControl(true);
+                });
 
-            EpisodeControl(false);
+                EpisodeControl(false);
+
+                GetEpisodes.Text = "Cancel Get Episodes";
+            }
+            else
+            {
+                GetEpisodes.Enabled = false;
+                GetEpisodes.Text = "Get Episodes";
+
+                getEpisodesCT.Cancel();
+            }
         }
 
         private void SelectAll_Click(object sender, EventArgs e)
@@ -290,10 +329,18 @@ namespace AutoDownloader
                     Episodes.Items.Add(currentEpisodes[i]);
             }
 
-            foreach (AutoDownloader_9Animeid.Link item in manager.queue)
+            Downloads.Items.Clear();
+            LinkedList<AutoDownloader_9Animeid.Link> old = new LinkedList<AutoDownloader_9Animeid.Link>(manager.queue);
+            manager.queue.Clear();
+            foreach (AutoDownloader_9Animeid.Link item in old)
             {
                 if (!link.Any(l => l == item))
+                {
                     Downloads.Items.Add(item);
+                    manager.queue.AddLast(item);
+                }
+                else if (currentAnime == item.anime)
+                    RestoreEpisode(item);
             }
 
             Downloads.Enabled = prevState;
