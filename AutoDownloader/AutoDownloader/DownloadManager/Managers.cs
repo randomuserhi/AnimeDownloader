@@ -15,6 +15,8 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Diagnostics;
+using System.IO.Pipes;
+using static AutoDownloader.AutoDownloader_9Animeid;
 
 namespace AutoDownloader
 {
@@ -345,8 +347,8 @@ namespace AutoDownloader
                 }
                 try
                 {
-                    Link[] links = metadata.Value.links;
-                    for (int i = 0; i < links.Length; i++)
+                    List<Link> links = metadata.Value.links;
+                    for (int i = 0; i < links.Count; i++)
                     {
                         Link l = links[i];
                         switch (links[i].type)
@@ -359,7 +361,7 @@ namespace AutoDownloader
                                 break;
                         }
                     }
-                    return metadata.Value.links;
+                    return metadata.Value.links.ToArray();
                 }
                 catch (Exception err)
                 {
@@ -371,11 +373,11 @@ namespace AutoDownloader
         }
 
         public Version version = new Version("1.0.4");
-        private struct metadata_1_0_4
+        public struct metadata_1_0_4
         {
             public string version { get; set; }
             public string anime { get; set; }
-            public Link[] links { get; set; }
+            public List<Link> links { get; set; }
         }
         private metadata_1_0_4? VerifyMetaFile(string filePath, Type type) //TODO:: change this such that it works by altering the previous version's file as opposed to this shoddy clear and rewrite method
         {
@@ -383,11 +385,11 @@ namespace AutoDownloader
             {
                 StringBuilder edits = new StringBuilder();
                 FileInfo fileInfo = new FileInfo(filePath);
-                string raw = File.ReadAllText(filePath);
+                string jsonString = File.ReadAllText(filePath);
 
                 try
                 {
-                    metadata_1_0_4 metadata = JsonSerializer.Deserialize<metadata_1_0_4>(raw);
+                    metadata_1_0_4 metadata = JsonSerializer.Deserialize<metadata_1_0_4>(jsonString);
                     return metadata;
                 }
                 catch (Exception err)
@@ -483,7 +485,6 @@ namespace AutoDownloader
                                 lines = edits.ToString().Split(Environment.NewLine.ToCharArray(), StringSplitOptions.RemoveEmptyEntries);
                                 success = true;
                             }
-                            string jsonString = string.Empty;
                             if (currentVersion == new Version("1.0.3"))
                             {
                                 currentVersion = new Version("1.0.4");
@@ -492,7 +493,7 @@ namespace AutoDownloader
                                 {
                                     version = currentVersion.ToString(),
                                     anime = fileInfo.Directory.Parent.Name,
-                                    links = new Link[lines.Length - 2]
+                                    links = new List<Link>(lines.Length - 2)
                                 };
                                 for (int i = 2; i < lines.Length; i++)
                                 {
@@ -508,8 +509,6 @@ namespace AutoDownloader
                                 }
 
                                 jsonString = JsonSerializer.Serialize(data);
-                                edits.Clear();
-                                edits.Append(jsonString);
                                 form.Log("[Manager] Updated to " + currentVersion);
                                 success = true;
                             }
@@ -531,8 +530,8 @@ namespace AutoDownloader
                     }
                 }
 
-                File.WriteAllText(filePath, raw);
-                return JsonSerializer.Deserialize<metadata_1_0_4>(raw);
+                File.WriteAllText(filePath, jsonString);
+                return JsonSerializer.Deserialize<metadata_1_0_4>(jsonString);
             }
             catch (Exception err)
             {
@@ -571,12 +570,13 @@ namespace AutoDownloader
             try
             {
                 ct.ThrowIfCancellationRequested();
-                form.DownloadControl(true);
 
                 if (downloads.files.Count == 0)
                 {
                     if (queue.Count != 0)
                     {
+                        form.DownloadControl(true);
+
                         Link l = queue.First();
                         current = l;
                         form.SetQueue(current);
@@ -711,6 +711,19 @@ namespace AutoDownloader
                 {
                     form.RestoreEpisodeToQueue(current.Value);
                     queue.AddFirst(current.Value);
+                }
+                else
+                {
+                    switch (current.Value.type)
+                    {
+                        case Type.subbed:
+                            subbed.Remove(current.Value.episodeUrl);
+                            break;
+                        case Type.dubbed:
+                            dubbed.Remove(current.Value.episodeUrl);
+                            break;
+                    }
+                    form.RestoreEpisode(current.Value);
                 }
             }
 
@@ -999,6 +1012,16 @@ namespace AutoDownloader
                     string DownloadsDirectoryPath = Path.Combine(progress.savePath, l.anime, (l.type == AutoDownloader_9Animeid.Type.subbed ? @"Sub" : @"Dub"));
                     string fullPath = Path.Combine(DownloadsDirectoryPath, l.ToString() + ".temp");
 
+                    AutoDownloader_9Animeid.metadata_1_0_4 data = new metadata_1_0_4()
+                    { 
+                        version = manager.version.ToString(),
+                        anime = l.anime,
+                        links = new List<Link>()
+                    };
+                    string metadataFile = Path.Combine(progress.savePath, l.anime, (l.type == AutoDownloader_9Animeid.Type.subbed ? @"Sub" : @"Dub"), "autodownloader.ini");
+                    Directory.CreateDirectory(new FileInfo(metadataFile).Directory.FullName);
+                    if (!File.Exists(metadataFile)) File.WriteAllText(metadataFile, JsonSerializer.Serialize(data));
+
                     progress.filePath = fullPath;
                     files[id] = progress;
 
@@ -1056,10 +1079,35 @@ namespace AutoDownloader
                     form.Log("[Web] Download completed.");
 
                     AutoDownloader_9Animeid.Link l = manager.current.Value;
-                    string autodownloader = Path.Combine(progress.savePath, l.anime, (l.type == AutoDownloader_9Animeid.Type.subbed ? @"Sub" : @"Dub"), "autodownloader.ini");
-                    if (!File.Exists(autodownloader)) File.WriteAllText(autodownloader, manager.version + "?\n" + l.anime + "\n"); //TODO:: create a function that generates the meta data file
-                    File.AppendAllText(autodownloader, l.Serialize() + "\n");
 
+                    string metadataFile = Path.Combine(progress.savePath, l.anime, (l.type == AutoDownloader_9Animeid.Type.subbed ? @"Sub" : @"Dub"), "autodownloader.ini");
+                    int attempts = 0;
+                    for (; attempts < 10; attempts++)
+                    {
+                        try
+                        {
+                            AutoDownloader_9Animeid.metadata_1_0_4 data = JsonSerializer.Deserialize<metadata_1_0_4>(File.ReadAllText(metadataFile));
+                            data.links.Add(l);
+
+                            StreamWriter w = new StreamWriter(metadataFile, false);
+                            w.WriteLine(JsonSerializer.Serialize(data));
+                            w.Flush();
+                            w.Dispose();
+
+                            break;
+                        }
+                        catch (Exception err)
+                        {
+                            form.Log("[Web] Failed to add completed download to metadata...");
+                            form.Log("[Web : WARNING] " + err.Message);
+                            form.Log("[Web] Trying again...");
+                            Task.Delay(1000).Wait();
+                        }
+                    }
+                    if (attempts == 10)
+                        form.Log("[Web : WARNING] Failed to add completed download to metadata after 10 attempts. This episode will not appear on your listings.");
+                    else
+                        form.Log("[Web] Pushed episode to metadata.");
 
                     FileInfo fileInfo = new FileInfo(progress.filePath);
                     fileInfo.MoveTo(Path.Combine(fileInfo.Directory.FullName, l.ToString() + ".mp4"));

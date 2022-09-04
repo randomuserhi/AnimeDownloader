@@ -30,7 +30,8 @@ namespace Updater
             foreach (FileInfo file in dir.GetFiles())
             {
                 string targetFilePath = Path.Combine(destinationDir, file.Name);
-                for (int j = 0; j < 10; j++)
+                int attempts = 0;
+                for (; attempts < 10; attempts++)
                 {
                     try
                     {
@@ -46,7 +47,8 @@ namespace Updater
                         Task.Delay(1000).Wait();
                     }
                 }
-                Console.WriteLine("[Updater] Moved " + targetFilePath);
+                if (attempts == 10) throw new Exception("Failed to move file after 10 attempts.");
+                else Console.WriteLine("[Updater] Moved " + targetFilePath);
             }
 
             // If recursive and copying subdirectories, recursively call this method

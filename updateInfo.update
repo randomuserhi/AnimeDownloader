@@ -1,5 +1,5 @@
-Auto Downloader 1.3.0
+Auto Downloader 1.3.1
 
-New Features:
-- Changed everything to use Json
-- Can now download updates in-app
+Bug Fixes:
+- Fixed a bug where new animes won't crate the correct autodownloader.ini files
+- Fixed a bug where cancelled items whilst queue is active would not allow them to be re-accessed until program is restarted
