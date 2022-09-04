@@ -51,6 +51,8 @@ namespace AutoDownloader
             this.SubbedButton = new System.Windows.Forms.Button();
             this.currentAnimeLabel = new System.Windows.Forms.TextBox();
             this.CurrentSelection = new System.Windows.Forms.TextBox();
+            this.label2 = new System.Windows.Forms.Label();
+            this.CurrentEnqueue = new System.Windows.Forms.TextBox();
             this.SuspendLayout();
             // 
             // browser
@@ -254,9 +256,28 @@ namespace AutoDownloader
             this.CurrentSelection.Size = new System.Drawing.Size(228, 20);
             this.CurrentSelection.TabIndex = 23;
             // 
+            // label2
+            // 
+            this.label2.AutoSize = true;
+            this.label2.Location = new System.Drawing.Point(1107, 59);
+            this.label2.Name = "label2";
+            this.label2.Size = new System.Drawing.Size(67, 13);
+            this.label2.TabIndex = 24;
+            this.label2.Text = "Enqueueing:";
+            // 
+            // Current
+            // 
+            this.CurrentEnqueue.Location = new System.Drawing.Point(1180, 54);
+            this.CurrentEnqueue.Name = "Current";
+            this.CurrentEnqueue.ReadOnly = true;
+            this.CurrentEnqueue.Size = new System.Drawing.Size(290, 20);
+            this.CurrentEnqueue.TabIndex = 25;
+            // 
             // Form
             // 
             this.ClientSize = new System.Drawing.Size(1482, 681);
+            this.Controls.Add(this.CurrentEnqueue);
+            this.Controls.Add(this.label2);
             this.Controls.Add(this.CurrentSelection);
             this.Controls.Add(this.currentAnimeLabel);
             this.Controls.Add(this.SubbedButton);
@@ -311,6 +332,8 @@ namespace AutoDownloader
         public System.Windows.Forms.Button SubbedButton;
         private System.Windows.Forms.TextBox currentAnimeLabel;
         private System.Windows.Forms.TextBox CurrentSelection;
+        private System.Windows.Forms.Label label2;
+        public System.Windows.Forms.TextBox CurrentEnqueue;
     }
 }
 

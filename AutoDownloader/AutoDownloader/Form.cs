@@ -34,7 +34,7 @@ namespace AutoDownloader
     public partial class Form : System.Windows.Forms.Form
     {
         AutoDownloader_9Animeid manager;
-        private Version version = new Version("1.2.7");
+        private Version version = new Version("1.2.8");
 
         public class ScrollingText
         {
@@ -74,8 +74,10 @@ namespace AutoDownloader
 
         ScrollingText currentAnimeScroll;
         ScrollingText selectionScroll;
+        ScrollingText currentEnqueueScroll;
 
-        System.Windows.Forms.Timer loop = new System.Windows.Forms.Timer();
+        public bool enqueueing = false;
+        private System.Windows.Forms.Timer loop = new System.Windows.Forms.Timer();
 
         StreamWriter logStream;
 
@@ -99,6 +101,7 @@ namespace AutoDownloader
 
             currentAnimeScroll = new ScrollingText(currentAnimeLabel);
             selectionScroll = new ScrollingText(CurrentSelection);
+            currentEnqueueScroll = new ScrollingText(CurrentEnqueue);
 
             loop.Interval = 100;
             loop.Tick += (object sender, EventArgs e) => {
@@ -414,6 +417,32 @@ namespace AutoDownloader
             manager.AddEpisodes(links, (AutoDownloader_9Animeid.Type)subbedDubbed);
         }
 
+        public void SetQueue(AutoDownloader_9Animeid.Link? link)
+        {
+            if (InvokeRequired)
+            {
+                this.Invoke(new Action<AutoDownloader_9Animeid.Link?>(SetQueue), new object[] { link });
+                return;
+            }
+
+            if (link != null)
+                currentEnqueueScroll.Text = link.Value.ToString();
+            else
+                currentEnqueueScroll.Text = string.Empty;
+        }
+
+        public void RestoreEpisodeToQueue(AutoDownloader_9Animeid.Link link, bool first = true)
+        {
+            if (InvokeRequired)
+            {
+                this.Invoke(new Action<AutoDownloader_9Animeid.Link, bool>(RestoreEpisodeToQueue), new object[] { link, first });
+                return;
+            }
+
+            if (Downloads.Items.Count == 0 || !first) Downloads.Items.Add(manager.current.Value);
+            else Downloads.Items.Insert(0, manager.current.Value);
+        }
+
         public void RestoreEpisode(AutoDownloader_9Animeid.Link link)
         {
             if (InvokeRequired)
@@ -468,8 +497,14 @@ namespace AutoDownloader
             }
         }
 
-        private void Download_Click(object sender, EventArgs e)
+        public void Download_Click(object sender, EventArgs e)
         {
+            if (InvokeRequired)
+            {
+                this.Invoke(new Action<object, EventArgs>(Download_Click), new object[] { sender, e });
+                return;
+            }
+
             if (Download.Text == "Start Queue")
             {
                 if (manager.savePath == string.Empty)
@@ -483,6 +518,7 @@ namespace AutoDownloader
                 Download.Text = "Pause Queue";
 
                 loop.Start();
+                enqueueing = true;
 
                 Downloads.Enabled = false;
                 Downloads.SelectedIndices.Clear();
@@ -491,6 +527,7 @@ namespace AutoDownloader
             {
                 Download.Text = "Start Queue";
                 loop.Stop();
+                enqueueing = false;
 
                 Downloads.Enabled = true;
             }

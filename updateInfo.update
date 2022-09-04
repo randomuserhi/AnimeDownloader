@@ -1,5 +1,5 @@
-Auto Downloader 1.2.7
+Auto Downloader 1.2.8
 
-Bug Fixes:
-- Fixed a bug where .ini files where formatted wrong
-- Fixed a bug where episodes with blank name would not be deserialized
+New Features:
+- Ability to cancel enqueueing process
+- Shows episode current being enqueued

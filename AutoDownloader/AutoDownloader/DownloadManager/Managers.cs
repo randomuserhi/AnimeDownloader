@@ -499,129 +499,177 @@ namespace AutoDownloader
         }
 
         public Task active;
+        public CancellationTokenSource enqueueCancelToken = null;
         public void CheckQueue()
         {
-            if (active == null || active.IsCompleted) active = Enqueue();
+            if (active == null || active.IsCompleted)
+            {
+                if (enqueueCancelToken == null) enqueueCancelToken = new CancellationTokenSource();
+                else
+                {
+                    enqueueCancelToken.Dispose();
+                    enqueueCancelToken = new CancellationTokenSource();
+                }
+                active = Enqueue(enqueueCancelToken.Token);
+            }
         }
 
         public Link? current = null;
-        private async Task Enqueue()
+        private void AbortQueue()
         {
-            if (downloads.files.Count == 0)
+            form.SetQueue(null);
+            form.RestoreEpisodeToQueue(current.Value, true);
+            queue.AddLast(current.Value);
+        }
+        private async Task Enqueue(CancellationToken ct)
+        {
+            try
             {
-                if (queue.Count != 0)
+                ct.ThrowIfCancellationRequested();
+                form.DownloadControl(true);
+
+                if (downloads.files.Count == 0)
                 {
-                    Link l = queue.First();
-                    current = l;
-
-                    queue.RemoveFirst();
-
-                    form.Downloads.Items.Clear();
-                    foreach (Link li in queue)
+                    if (queue.Count != 0)
                     {
-                        form.Downloads.Items.Add(li);
-                    }
+                        Link l = queue.First();
+                        current = l;
+                        form.SetQueue(current);
 
-                    form.Log("[Enqueue] Loading URL...");
-                    LoadUrlAsyncResponse resp = await downloader.LoadUrlAsync(l.episodeUrl);
-                    if (!resp.Success)
-                    {
-                        form.Log("[Enqueue] Browser timed out, aborting...");
-                        return;
-                    }
+                        queue.RemoveFirst();
 
-                    form.Log("[Enqueue] Attempting to load Mp4Upload video...\n[Enqueue] Attempt 1...");
-                    string script = string.Empty;
-                    switch (l.type)
-                    {
-                        case Type.subbed:
-                            script = Scripts.LoadSubbedMp4UploadVideo;
-                            break;
-                        case Type.dubbed:
-                            script = Scripts.LoadDubbedMp4UploadVideo;
-                            break;
-                        default:
-                            Remove(l);
+                        form.Downloads.Items.Clear();
+                        foreach (Link li in queue)
+                        {
+                            form.Downloads.Items.Add(li);
+                        }
+
+                        form.Log("[Enqueue] Loading URL... (If your program gets stuck here, close and reopen)");
+                        LoadUrlAsyncResponse resp = await downloader.LoadUrlAsync(l.episodeUrl);
+                        if (!resp.Success)
+                        {
+                            form.Log("[Enqueue] Browser timed out, aborting...");
+                            AbortQueue();
                             return;
-                    }
-                    downloader.ExecuteScriptAsync(script);
+                        }
+                        ct.ThrowIfCancellationRequested();
 
-                    string html = await downloader.GetSourceAsync();
+                        form.Log("[Enqueue] Attempting to load Mp4Upload video...\n[Enqueue] Attempt 1...");
+                        string script = string.Empty;
+                        switch (l.type)
+                        {
+                            case Type.subbed:
+                                script = Scripts.LoadSubbedMp4UploadVideo;
+                                break;
+                            case Type.dubbed:
+                                script = Scripts.LoadDubbedMp4UploadVideo;
+                                break;
+                            default:
+                                Remove(l);
+                                AbortQueue();
+                                return;
+                        }
+                        downloader.ExecuteScriptAsync(script);
 
-                    string linkPrefix = "https://www.mp4upload.com/embed-";
-                    int mp4Upload = html.IndexOf(linkPrefix);
-                    for (int i = 0; i < 9 && mp4Upload < 0; i++)
-                    {
-                        form.Log("[Enqueue] Attempt " + (i + 2) + "...");
-                        html = await downloader.GetSourceAsync();
+                        string html = await downloader.GetSourceAsync();
 
-                        mp4Upload = html.IndexOf(linkPrefix);
-                        await Task.Delay(1000);
-                    }
-                    if (mp4Upload < 0)
-                    {
-                        form.Log("[Enqueue] Failed to load Mp4Upload video.");
-                        Remove(l);
-                        return;
-                    }
-                    mp4Upload += linkPrefix.Length;
+                        string linkPrefix = "https://www.mp4upload.com/embed-";
+                        int mp4Upload = html.IndexOf(linkPrefix);
+                        for (int i = 0; i < 9 && mp4Upload < 0; i++)
+                        {
+                            ct.ThrowIfCancellationRequested();
 
-                    StringBuilder downloadLink = new StringBuilder("https://www.mp4upload.com/");
-                    for (char c = html[mp4Upload]; c != '.'; c = html[++mp4Upload])
-                    {
-                        downloadLink.Append(c);
-                    }
+                            form.Log("[Enqueue] Attempt " + (i + 2) + "...");
+                            html = await downloader.GetSourceAsync();
 
-                    form.Log("[Enqueue] Found Mp4 video, " + downloadLink.ToString() + "\n[Enqueue] Attempting to load Mp4Upload embed...\n[Enqueue] Attempt 1...");
-                    resp = await downloader.LoadUrlAsync(downloadLink.ToString());
-                    if (!resp.Success)
-                    {
-                        form.Log("[Enqueue] Browser timed out, aborting...");
-                        return;
-                    }
+                            mp4Upload = html.IndexOf(linkPrefix);
+                            await Task.Delay(1000);
+                        }
+                        if (mp4Upload < 0)
+                        {
+                            form.Log("[Enqueue] Failed to load Mp4Upload video.");
+                            Remove(l);
+                            AbortQueue();
+                            return;
+                        }
+                        mp4Upload += linkPrefix.Length;
 
-                    downloader.ExecuteScriptAsync(Scripts.RedirectMp4UploadLink);
-                    html = await downloader.GetSourceAsync();
+                        StringBuilder downloadLink = new StringBuilder("https://www.mp4upload.com/");
+                        for (char c = html[mp4Upload]; c != '.'; c = html[++mp4Upload])
+                        {
+                            downloadLink.Append(c);
+                        }
+                        ct.ThrowIfCancellationRequested();
 
-                    string loadedTest = "Embed code";
-                    mp4Upload = html.IndexOf(loadedTest);
-                    for (int i = 0; i < 9 && mp4Upload < 0; i++)
-                    {
-                        form.Log("[Enqueue] Attempt " + (i + 2) + "...");
+                        form.Log("[Enqueue] Found Mp4 video, " + downloadLink.ToString() + "\n[Enqueue] Attempting to load Mp4Upload embed...\n[Enqueue] Attempt 1...");
+                        resp = await downloader.LoadUrlAsync(downloadLink.ToString());
+                        if (!resp.Success)
+                        {
+                            form.Log("[Enqueue] Browser timed out, aborting...");
+                            AbortQueue();
+                            return;
+                        }
+                        ct.ThrowIfCancellationRequested();
+
                         downloader.ExecuteScriptAsync(Scripts.RedirectMp4UploadLink);
                         html = await downloader.GetSourceAsync();
 
+                        string loadedTest = "Embed code";
                         mp4Upload = html.IndexOf(loadedTest);
-                        await Task.Delay(1000);
-                    }
-                    if (mp4Upload < 0)
-                    {
-                        form.Log("[Enqueue] Failed to load Mp4Upload embed.");
-                        Remove(l);
-                        return;
-                    }
+                        for (int i = 0; i < 9 && mp4Upload < 0; i++)
+                        {
+                            ct.ThrowIfCancellationRequested();
 
-                    form.Log("[Enqueue] Attempting to start download...");
-                    for (int i = 0; i < 10 && downloads.files.Count == 0; i++)
-                    {
-                        form.Log("[Enqueue] Attempt " + (i + 1) + "...");
-                        downloader.ExecuteScriptAsync(Scripts.StartMp4UploadDownload);
-                        await Task.Delay(1000);
-                    }
-                    if (downloads.files.Count != 0)
-                    {
-                        string key = downloads.files.Keys.First();
-                        DownloadProgress progress = downloads.files[key];
-                        progress.acknowledged = true;
-                        downloads.files[key] = progress;
-                        form.Log("[Enqueue] Download started successfully!");
-                    }
-                    else
-                    {
-                        form.Log("[Enqueue] Failed to start download.");
+                            form.Log("[Enqueue] Attempt " + (i + 2) + "...");
+                            downloader.ExecuteScriptAsync(Scripts.RedirectMp4UploadLink);
+                            html = await downloader.GetSourceAsync();
+
+                            mp4Upload = html.IndexOf(loadedTest);
+                            await Task.Delay(1000);
+                        }
+                        if (mp4Upload < 0)
+                        {
+                            form.Log("[Enqueue] Failed to load Mp4Upload embed.");
+                            Remove(l);
+                            AbortQueue();
+                            return;
+                        }
+                        ct.ThrowIfCancellationRequested();
+
+                        form.Log("[Enqueue] Attempting to start download...");
+                        for (int i = 0; i < 10 && downloads.files.Count == 0; i++)
+                        {
+                            ct.ThrowIfCancellationRequested();
+
+                            form.Log("[Enqueue] Attempt " + (i + 1) + "...");
+                            downloader.ExecuteScriptAsync(Scripts.StartMp4UploadDownload);
+                            await Task.Delay(1000);
+                        }
+                        if (downloads.files.Count != 0)
+                        {
+                            string key = downloads.files.Keys.First();
+                            DownloadProgress progress = downloads.files[key];
+                            progress.acknowledged = true;
+                            downloads.files[key] = progress;
+                            form.Log("[Enqueue] Download started successfully!");
+                        }
+                        else
+                        {
+                            form.Log("[Enqueue] Failed to start download.");
+                        }
                     }
                 }
             }
+            catch (OperationCanceledException)
+            {
+                if (!form.enqueueing)
+                {
+                    form.RestoreEpisodeToQueue(current.Value);
+                    queue.AddFirst(current.Value);
+                }
+            }
+
+            form.SetQueue(null);
         }
 
         private void Remove(Link l)
@@ -660,6 +708,13 @@ namespace AutoDownloader
 
                 Remove(current.Value);
             }
+            else
+            {
+                form.Log("[Enqueue] Cancelling...");
+                enqueueCancelToken.Cancel();
+            }
+
+            form.DownloadControl(false);
         }
 
         public void AddEpisodes(Link[] links, Type type)
@@ -704,7 +759,7 @@ namespace AutoDownloader
                 // Were we already canceled?
                 ct.ThrowIfCancellationRequested();
 
-                form.Log("[Get] Loading site...");
+                form.Log("[Get] Loading site... (If your program gets stuck here, close and reopen)");
                 LoadUrlAsyncResponse resp = await fetcher.LoadUrlAsync(url);
                 if (!resp.Success)
                 {
@@ -875,7 +930,7 @@ namespace AutoDownloader
 
                 form.SetProgress(progress);
 
-                return true;
+                return !manager.enqueueCancelToken.IsCancellationRequested;
             }
             else
             {
@@ -932,12 +987,16 @@ namespace AutoDownloader
                 if (progress.cancelled)
                 {
                     form.Log("[Web] Cancelling download...");
-                    if (progress.savePath == manager.savePath) form.RestoreEpisode(manager.current.Value);
+                    if (!form.enqueueing)
+                    {
+                        form.RestoreEpisodeToQueue(manager.current.Value);
+                        manager.queue.AddFirst(manager.current.Value);
+                    }
+                    else if (progress.savePath == manager.savePath) form.RestoreEpisode(manager.current.Value);
                     files.Remove(id);
                     manager.current = null;
                     form.ClearProgress();
                     callback.Cancel();
-                    form.DownloadControl(false);
                     return;
                 }
 
@@ -960,8 +1019,6 @@ namespace AutoDownloader
                     FileInfo fileInfo = new FileInfo(progress.filePath);
                     fileInfo.MoveTo(Path.Combine(fileInfo.Directory.FullName, l.ToString() + ".mp4"));
 
-                    form.DownloadControl(false);
-
                     progress.completed = true;
                     progress.speed = 0;
                     progress.percentage = 0;
@@ -972,7 +1029,6 @@ namespace AutoDownloader
                 else files[id] = progress;
 
                 form.SetProgress(progress);
-                form.DownloadControl(true);
             }
         }
     }
