@@ -75,11 +75,10 @@ namespace AutoDownloader
         Timer loop = new Timer();
 
         public int subbedDubbed = 0;
+        public bool checkUpdates = true;
         public Form()
         {
             InitializeComponent();
-
-            CheckForUpdates();
 
             CurrentProgress.Minimum = 0;
             CurrentProgress.Maximum = 100;
@@ -88,6 +87,7 @@ namespace AutoDownloader
             currentAnimeLabel.Text = string.Empty;
 
             manager = new AutoDownloader_9Animeid(this, fetcher, downloader);
+            if (checkUpdates) CheckForUpdates();
 
             currentAnimeScroll = new ScrollingText(currentAnimeLabel);
             selectionScroll = new ScrollingText(CurrentSelection);
@@ -103,19 +103,34 @@ namespace AutoDownloader
 
         private void CheckForUpdates()
         {
+            Log("[Manager] Checking for updates...");
             using (WebClient wc = new WebClient())
             {
                 wc.Headers.Add("a", "a");
                 try
                 {
-                    wc.DownloadFile("https://github.com/github/platform-samples/blob/master/LICENSE.txt", @"updateInfo.update");
+                    wc.DownloadFile("https://raw.githubusercontent.com/randomuserhi/AnimeDownloader/main/updateInfo.update", @"updateInfo.temp");
+                    if (File.Exists("updateInfo.update"))
+                    {
+                        if (!File.ReadAllBytes(@"updateInfo.temp").SequenceEqual(File.ReadAllBytes(@"updateInfo.update")))
+                        {
+                            Log("[Manager] Found an update...");
+                            UpdateForm updateForm = new UpdateForm(File.ReadAllText(@"updateInfo.temp"));
+                            updateForm.ShowDialog();
+                        }
+                    }
+                    else
+                    {
+                        Log("[Manager] Unable to find update info, grabbing from web and assuming on latest...");
+                        FileInfo fileInfo = new FileInfo(@"updateInfo.temp");
+                        fileInfo.MoveTo(Path.Combine(fileInfo.Directory.FullName, @"updateInfo.update"));
+                    }
                 }
-                catch (Exception ex)
+                catch (Exception err)
                 {
-                    Console.WriteLine(ex.ToString());
+                    Log("[Manager] Failed to check for updates.");
+                    Log("[Manager : WARNING] " + err.Message);
                 }
-                Console.ReadKey();
-                Console.ReadLine();
             }
         }
 

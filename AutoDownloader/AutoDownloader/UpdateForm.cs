@@ -12,9 +12,16 @@ namespace AutoDownloader
 {
     public partial class UpdateForm : Form
     {
-        public UpdateForm()
+        public UpdateForm(string changeLog)
         {
             InitializeComponent();
+
+            ChangeLog.Text = changeLog;
+        }
+
+        private void DownloadUpdate_Click(object sender, EventArgs e)
+        {
+            System.Diagnostics.Process.Start("https://github.com/randomuserhi/AnimeDownloader/releases");
         }
     }
 }

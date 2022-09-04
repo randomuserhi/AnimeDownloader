@@ -28,19 +28,20 @@
         /// </summary>
         private void InitializeComponent()
         {
-            this.richTextBox1 = new System.Windows.Forms.RichTextBox();
+            this.ChangeLog = new System.Windows.Forms.RichTextBox();
             this.label2 = new System.Windows.Forms.Label();
             this.DownloadUpdate = new System.Windows.Forms.Button();
+            this.DontShow = new System.Windows.Forms.CheckBox();
             this.SuspendLayout();
             // 
-            // richTextBox1
+            // ChangeLog
             // 
-            this.richTextBox1.Location = new System.Drawing.Point(12, 28);
-            this.richTextBox1.Name = "richTextBox1";
-            this.richTextBox1.ReadOnly = true;
-            this.richTextBox1.Size = new System.Drawing.Size(433, 227);
-            this.richTextBox1.TabIndex = 24;
-            this.richTextBox1.Text = "";
+            this.ChangeLog.Location = new System.Drawing.Point(12, 28);
+            this.ChangeLog.Name = "ChangeLog";
+            this.ChangeLog.ReadOnly = true;
+            this.ChangeLog.Size = new System.Drawing.Size(433, 227);
+            this.ChangeLog.TabIndex = 24;
+            this.ChangeLog.Text = "";
             // 
             // label2
             // 
@@ -53,21 +54,33 @@
             // 
             // DownloadUpdate
             // 
-            this.DownloadUpdate.Location = new System.Drawing.Point(12, 261);
+            this.DownloadUpdate.Location = new System.Drawing.Point(116, 261);
             this.DownloadUpdate.Name = "DownloadUpdate";
-            this.DownloadUpdate.Size = new System.Drawing.Size(433, 23);
+            this.DownloadUpdate.Size = new System.Drawing.Size(329, 23);
             this.DownloadUpdate.TabIndex = 26;
             this.DownloadUpdate.Text = "Update now";
             this.DownloadUpdate.UseVisualStyleBackColor = true;
+            this.DownloadUpdate.Click += new System.EventHandler(this.DownloadUpdate_Click);
+            // 
+            // DontShow
+            // 
+            this.DontShow.AutoSize = true;
+            this.DontShow.Location = new System.Drawing.Point(12, 265);
+            this.DontShow.Name = "DontShow";
+            this.DontShow.Size = new System.Drawing.Size(98, 17);
+            this.DontShow.TabIndex = 27;
+            this.DontShow.Text = "Dont ask again";
+            this.DontShow.UseVisualStyleBackColor = true;
             // 
             // UpdateForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(457, 296);
+            this.Controls.Add(this.DontShow);
             this.Controls.Add(this.DownloadUpdate);
             this.Controls.Add(this.label2);
-            this.Controls.Add(this.richTextBox1);
+            this.Controls.Add(this.ChangeLog);
             this.MaximumSize = new System.Drawing.Size(473, 335);
             this.MinimumSize = new System.Drawing.Size(473, 335);
             this.Name = "UpdateForm";
@@ -77,9 +90,10 @@
             this.Controls.SetChildIndex(this.SavePathLabel, 0);
             this.Controls.SetChildIndex(this.DubbedButton, 0);
             this.Controls.SetChildIndex(this.SubbedButton, 0);
-            this.Controls.SetChildIndex(this.richTextBox1, 0);
+            this.Controls.SetChildIndex(this.ChangeLog, 0);
             this.Controls.SetChildIndex(this.label2, 0);
             this.Controls.SetChildIndex(this.DownloadUpdate, 0);
+            this.Controls.SetChildIndex(this.DontShow, 0);
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -87,8 +101,9 @@
 
         #endregion
 
-        private System.Windows.Forms.RichTextBox richTextBox1;
+        private System.Windows.Forms.RichTextBox ChangeLog;
         private System.Windows.Forms.Label label2;
         private System.Windows.Forms.Button DownloadUpdate;
+        private System.Windows.Forms.CheckBox DontShow;
     }
 }

@@ -128,7 +128,7 @@ namespace AutoDownloader
             }
         }
 
-        static string urlPrefix = "https://9anime.id/watch/";
+        //static string urlPrefix = "https://9anime.id/watch/";
 
         ChromiumWebBrowser fetcher;
         ChromiumWebBrowser downloader;
@@ -179,13 +179,14 @@ namespace AutoDownloader
                 form.subbedDubbed = int.Parse(lines[1]);
                 form.SubbedButton.Enabled = form.subbedDubbed == 0;
                 form.DubbedButton.Enabled = form.subbedDubbed == 1;
-
+                form.checkUpdates = int.Parse(lines[2]) == 1;
                 if (savePath == string.Empty) return;
                 CheckAnimes();
             }
-            catch (Exception)
+            catch (Exception err)
             {
-                form.Log("Unable to load old settings.txt, removing...");
+                form.Log("[Manager] Unable to load old settings.txt (May have been invalidated by an update), removing...");
+                form.Log("[Manager : WARNING] " + err.Message);
                 File.Delete(settingsLocation);
             }
         }
@@ -306,6 +307,7 @@ namespace AutoDownloader
             StringBuilder sb = new StringBuilder();
             sb.AppendLine(savePath);
             sb.AppendLine("" + form.subbedDubbed);
+            sb.AppendLine((form.checkUpdates ? 1 : 0).ToString());
             File.WriteAllText(settingsLocation, sb.ToString());
         }
 
@@ -727,7 +729,7 @@ namespace AutoDownloader
                     File.AppendAllText(Path.Combine(downloader.savePath, l.anime, (l.type == AutoDownloader_9Animeid.Type.subbed ? @"Sub" : @"Dub"), "autodownloader.ini"), l.episodeUrl + "?" + l.index + "?" + l.filler + "?" + l.episode + "\n");
 
                     FileInfo fileInfo = new FileInfo(progress.filePath);
-                    fileInfo.MoveTo(Path.Combine(fileInfo.Directory.FullName, l.ToString()) + ".mp4");
+                    fileInfo.MoveTo(Path.Combine(fileInfo.Directory.FullName, l.ToString() + ".mp4"));
 
                     form.DownloadControl(false);
 
