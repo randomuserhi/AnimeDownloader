@@ -66,6 +66,7 @@ namespace AutoDownloader
             public string id;
             public string fileName;
             public string filePath;
+            public string savePath;
             public string location;
             public string url;
             public bool completed;
@@ -348,6 +349,8 @@ namespace AutoDownloader
 
         public void SaveSettings()
         {
+            form.Log("[Manager] Saving settings.txt ...");
+
             StringBuilder sb = new StringBuilder();
             sb.AppendLine(savePath);
             sb.AppendLine("" + form.subbedDubbed);
@@ -475,9 +478,6 @@ namespace AutoDownloader
                     }
                 }
             }
-
-            string key = downloads.files.Keys.ToArray()[0];
-            if (downloads.files[key].completed || downloads.files[key].cancelled) downloads.files.Remove(key);
         }
 
         private void Remove(Link l)
@@ -552,6 +552,7 @@ namespace AutoDownloader
         }
 
         public string currentAnime = string.Empty;
+        public Link[] allLinks = new Link[0];
         public async Task<Link[]> GetEpisodes(CancellationToken ct, string url, Type type)
         {
             try
@@ -629,6 +630,7 @@ namespace AutoDownloader
                 form.Log("[Get] Found " + (sets.Length - 1) + " sets...");
 
                 List<Link> links = new List<Link>();
+                List<Link> allLinks = new List<Link>();
                 int episodeIndex = 0;
                 for (int i = 0; i < sets.Length - 1; i++)
                 {
@@ -657,6 +659,17 @@ namespace AutoDownloader
                             }
                         string episodeUrl = href.ToString();
 
+                        Link l = new Link()
+                        {
+                            anime = anime,
+                            episode = String.Join("", episode.ToString().Split(invalids, StringSplitOptions.RemoveEmptyEntries)).TrimEnd('.'),
+                            index = episodeIndex,
+                            episodeUrl = episodeUrl,
+                            filler = list[j].Contains("** Filler Episode **"),
+                            type = type
+                        };
+                        allLinks.Add(l);
+
                         switch (type)
                         {
                             case Type.subbed:
@@ -668,20 +681,12 @@ namespace AutoDownloader
                             default:
                                 continue;
                         }
-
-                        links.Add(new Link()
-                        {
-                            anime = anime,
-                            episode = String.Join("", episode.ToString().Split(invalids, StringSplitOptions.RemoveEmptyEntries)).TrimEnd('.'),
-                            index = episodeIndex,
-                            episodeUrl = episodeUrl,
-                            filler = list[j].Contains("** Filler Episode **"),
-                            type = type
-                        });
+                        links.Add(l);
                     }
                 }
                 form.Log("[Get] Finished.");
                 currentAnime = anime;
+                this.allLinks = allLinks.ToArray();
                 return links.ToArray();
             }
             catch(OperationCanceledException)
@@ -696,12 +701,12 @@ namespace AutoDownloader
         public object mutex = new object();
 
         private Form form;
-        private AutoDownloader_9Animeid downloader;
+        private AutoDownloader_9Animeid manager;
         public Dictionary<string, AutoDownloader_9Animeid.DownloadProgress> files = new Dictionary<string, AutoDownloader_9Animeid.DownloadProgress>();
 
         public DownloadManager(Form form, AutoDownloader_9Animeid downloader)
         {
-            this.downloader = downloader;
+            this.manager = downloader;
             this.form = form;
         }
 
@@ -715,7 +720,8 @@ namespace AutoDownloader
                 AutoDownloader_9Animeid.DownloadProgress progress = new AutoDownloader_9Animeid.DownloadProgress()
                 {
                     id = id,
-                    fileName = downloader.current.ToString() + ".mp4",
+                    fileName = manager.current.ToString() + ".mp4",
+                    savePath = manager.savePath,
                     url = url,
                     completed = false,
                     cancelled = false
@@ -723,7 +729,6 @@ namespace AutoDownloader
                 files.Add(id, progress);
 
                 form.SetProgress(progress);
-                form.DownloadControl(true);
 
                 return true;
             }
@@ -742,12 +747,13 @@ namespace AutoDownloader
                     Uri uri = new Uri(downloadItem.Url);
                     string id = Path.GetFileName(uri.AbsolutePath);
 
-                    AutoDownloader_9Animeid.Link l = downloader.current;
-                    if (downloader.savePath == string.Empty) downloader.savePath = AppDomain.CurrentDomain.BaseDirectory;
-                    string DownloadsDirectoryPath = Path.Combine(downloader.savePath, l.anime, (l.type == AutoDownloader_9Animeid.Type.subbed ? @"Sub" : @"Dub"));
+                    AutoDownloader_9Animeid.Link l = manager.current;
+                    AutoDownloader_9Animeid.DownloadProgress progress = files[id];
+
+                    if (progress.savePath == string.Empty) progress.savePath = AppDomain.CurrentDomain.BaseDirectory;
+                    string DownloadsDirectoryPath = Path.Combine(progress.savePath, l.anime, (l.type == AutoDownloader_9Animeid.Type.subbed ? @"Sub" : @"Dub"));
                     string fullPath = Path.Combine(DownloadsDirectoryPath, l.ToString() + ".temp");
 
-                    AutoDownloader_9Animeid.DownloadProgress progress = files[id];
                     progress.filePath = fullPath;
                     files[id] = progress;
 
@@ -780,7 +786,7 @@ namespace AutoDownloader
                 if (progress.cancelled)
                 {
                     form.Log("[Web] Cancelling download...");
-                    form.RestoreEpisode(downloader.current);
+                    if (progress.savePath == manager.savePath) form.RestoreEpisode(manager.current);
                     files.Remove(id);
                     form.ClearProgress();
                     callback.Cancel();
@@ -798,8 +804,8 @@ namespace AutoDownloader
                 {
                     form.Log("[Web] Download completed.");
 
-                    AutoDownloader_9Animeid.Link l = downloader.current;
-                    File.AppendAllText(Path.Combine(downloader.savePath, l.anime, (l.type == AutoDownloader_9Animeid.Type.subbed ? @"Sub" : @"Dub"), "autodownloader.ini"), l.episodeUrl + "?" + l.index + "?" + l.filler + "?" + l.episode + "\n");
+                    AutoDownloader_9Animeid.Link l = manager.current;
+                    File.AppendAllText(Path.Combine(progress.savePath, l.anime, (l.type == AutoDownloader_9Animeid.Type.subbed ? @"Sub" : @"Dub"), "autodownloader.ini"), l.episodeUrl + "?" + l.index + "?" + l.filler + "?" + l.episode + "\n");
 
                     FileInfo fileInfo = new FileInfo(progress.filePath);
                     fileInfo.MoveTo(Path.Combine(fileInfo.Directory.FullName, l.ToString() + ".mp4"));
@@ -813,6 +819,7 @@ namespace AutoDownloader
                 
                 files[id] = progress;
                 form.SetProgress(progress);
+                form.DownloadControl(true);
             }
         }
     }

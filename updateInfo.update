@@ -8,3 +8,4 @@ New Features:
 
 Bug Fixes:
 - Fixed a bug where cancelled downloads would loop continuously
+- Fixed a bug where changing anime folder location in app whilst a program is downloading would cause the wrong autodownloader.ini file to update

@@ -215,7 +215,6 @@ namespace AutoDownloader
             Cancel.Enabled = enabled;
         }
 
-        AutoDownloader_9Animeid.Link[] currentEpisodes = new AutoDownloader_9Animeid.Link[0];
         public void SetEpisodes(AutoDownloader_9Animeid.Link[] links)
         {
             if (InvokeRequired)
@@ -224,7 +223,6 @@ namespace AutoDownloader
                 return;
             }
 
-            currentEpisodes = links;
             Episodes.Items.Clear();
             for (int i = 0; i < links.Length; i++)
             {
@@ -253,7 +251,7 @@ namespace AutoDownloader
             }
 
             CurrentProgress.Value = progress.percentage;
-            CurrentLabel.Text = "bytes: " + progress.speed + "\n\nFilename: " + progress.fileName + "\n\nURL: " + progress.url + "\n\nOriginal file name: " + progress.id;
+            CurrentLabel.Text = "bytes: " + progress.speed + "\n\nFilename: " + progress.fileName + "\n\nLocation: " + progress.filePath + "\n\nURL: " + progress.url + "\n\nOriginal file name: " + progress.id;
         }
 
         public void EnableGetEpisodes()
@@ -264,6 +262,7 @@ namespace AutoDownloader
                 return;
             }
 
+            GetEpisodes.Text = "Get Episodes";
             GetEpisodes.Enabled = true;
         }
 
@@ -280,13 +279,11 @@ namespace AutoDownloader
                         currentAnime = manager.currentAnime;
                         SetEpisodes(result.Result);
                     }
-                    else
-                    {
-                        getEpisodesCT.Dispose();
-                        getEpisodesCT = null;
-                        EnableGetEpisodes();
-                    }
+
                     EpisodeControl(true);
+                    EnableGetEpisodes();
+                    getEpisodesCT.Dispose();
+                    getEpisodesCT = null;
                 });
 
                 EpisodeControl(false);
@@ -316,18 +313,10 @@ namespace AutoDownloader
             if (manager == null) return; //Prevents first boot up call from breaking
 
             Log("[Manager] Restoring and removing episodes from listings...");
+
             bool prevState = Downloads.Enabled;
             Downloads.Enabled = false;
             EpisodeControl(false, false);
-
-            Episodes.Items.Clear();
-            for (int i = 0; i < currentEpisodes.Length; i++)
-            {
-                if (!link.Any(l => l == currentEpisodes[i]) && 
-                    !manager.subbed.ContainsKey(currentEpisodes[i].episodeUrl) && 
-                    !manager.dubbed.ContainsKey(currentEpisodes[i].episodeUrl))
-                    Episodes.Items.Add(currentEpisodes[i]);
-            }
 
             Downloads.Items.Clear();
             LinkedList<AutoDownloader_9Animeid.Link> old = new LinkedList<AutoDownloader_9Animeid.Link>(manager.queue);
@@ -338,9 +327,28 @@ namespace AutoDownloader
                 {
                     Downloads.Items.Add(item);
                     manager.queue.AddLast(item);
+
+                    switch (item.type)
+                    {
+                        case AutoDownloader_9Animeid.Type.subbed:
+                            manager.subbed.Add(item.episodeUrl, item);
+                            break;
+                        case AutoDownloader_9Animeid.Type.dubbed:
+                            manager.dubbed.Add(item.episodeUrl, item);
+                            break;
+                    }
                 }
                 else if (currentAnime == item.anime)
                     RestoreEpisode(item);
+            }
+
+            Episodes.Items.Clear();
+            for (int i = 0; i < manager.allLinks.Length; i++)
+            {
+                if (!link.Any(l => l == manager.allLinks[i]) && 
+                    !manager.subbed.ContainsKey(manager.allLinks[i].episodeUrl) && 
+                    !manager.dubbed.ContainsKey(manager.allLinks[i].episodeUrl))
+                    Episodes.Items.Add(manager.allLinks[i]);
             }
 
             Downloads.Enabled = prevState;
@@ -452,11 +460,11 @@ namespace AutoDownloader
         private void BrowseSavePath_Click(object sender, EventArgs e)
         {
             var dlg = new FolderPicker();
-            dlg.InputPath = manager.savePath == String.Empty ? @"c:\" : manager.savePath;
+            dlg.InputPath = manager.savePath == String.Empty ? Application.StartupPath : manager.savePath;
             if (dlg.ShowDialog(IntPtr.Zero) == true)
             {
                 SavePathLabel.Text = dlg.ResultPath;
-                manager.savePath = SavePathLabel.Text;
+                manager.savePath = dlg.ResultPath;
                 manager.CheckAnimes();
             }
 

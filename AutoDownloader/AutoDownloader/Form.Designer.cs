@@ -180,6 +180,7 @@ namespace AutoDownloader
             // 
             // SavePathLabel
             // 
+            this.SavePathLabel.Enabled = false;
             this.SavePathLabel.Location = new System.Drawing.Point(963, 21);
             this.SavePathLabel.Name = "SavePathLabel";
             this.SavePathLabel.Size = new System.Drawing.Size(507, 20);

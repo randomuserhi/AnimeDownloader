@@ -30,6 +30,7 @@ namespace AutoDownloader
             if (!realUpdate)
             {
                 DownloadUpdate.Visible = false;
+                DontShow.Visible = false;
                 Text = "Change Log";
             }
         }

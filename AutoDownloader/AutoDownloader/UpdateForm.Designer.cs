@@ -55,7 +55,7 @@
             // 
             // DownloadUpdate
             // 
-            this.DownloadUpdate.Location = new System.Drawing.Point(124, 261);
+            this.DownloadUpdate.Location = new System.Drawing.Point(12, 261);
             this.DownloadUpdate.Name = "DownloadUpdate";
             this.DownloadUpdate.Size = new System.Drawing.Size(240, 23);
             this.DownloadUpdate.TabIndex = 26;
@@ -66,7 +66,7 @@
             // DontShow
             // 
             this.DontShow.AutoSize = true;
-            this.DontShow.Location = new System.Drawing.Point(12, 265);
+            this.DontShow.Location = new System.Drawing.Point(258, 265);
             this.DontShow.Name = "DontShow";
             this.DontShow.Size = new System.Drawing.Size(106, 17);
             this.DontShow.TabIndex = 27;
