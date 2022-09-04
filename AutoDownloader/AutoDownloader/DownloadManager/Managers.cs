@@ -369,8 +369,8 @@ namespace AutoDownloader
             return foundLinks;
         }
 
-        public Version version = new Version("1.0.2");
-        private string[] VerifyMetaFile(string filePath, Type type)
+        public Version version = new Version("1.0.3");
+        private string[] VerifyMetaFile(string filePath, Type type) //TODO:: change this such that it works by altering the previous version's file as opposed to this shoddy clear and rewrite method
         {
             try
             {
@@ -437,8 +437,34 @@ namespace AutoDownloader
                                 for (int i = start; i < lines.Length; i++)
                                 {
                                     List<string> components = new List<string>(lines[i].Split('?'));
+                                    components.Add(((int)type).ToString());
                                     components.Add(fileInfo.Directory.Parent.Name);
                                     edits.AppendLine(string.Join("?", components));
+                                }
+
+                                success = true;
+                            }
+                            if (currentVersion == new Version("1.0.2"))
+                            {
+                                currentVersion = new Version("1.0.3");
+                                edits.Clear();
+
+                                edits.AppendLine(version + "?");
+                                edits.AppendLine(fileInfo.Directory.Parent.Name);
+                                for (int i = start; i < lines.Length; i++)
+                                {
+                                    List<string> components = new List<string>(lines[i].Split('?'));
+                                    if (components.Count != 6)
+                                    {
+                                        components.RemoveAt(components.Count - 1);
+                                        components.Add(((int)type).ToString());
+                                        components.Add(fileInfo.Directory.Parent.Name);
+                                        edits.AppendLine(string.Join("?", components));
+                                    }
+                                    else
+                                    {
+                                        edits.AppendLine(string.Join("?", components));
+                                    }
                                 }
 
                                 success = true;
@@ -930,7 +956,7 @@ namespace AutoDownloader
 
                     AutoDownloader_9Animeid.Link l = manager.current.Value;
                     string autodownloader = Path.Combine(progress.savePath, l.anime, (l.type == AutoDownloader_9Animeid.Type.subbed ? @"Sub" : @"Dub"), "autodownloader.ini");
-                    if (!File.Exists(autodownloader)) File.WriteAllText(autodownloader, manager.version + "?\n" + l.anime + "\n");
+                    if (!File.Exists(autodownloader)) File.WriteAllText(autodownloader, manager.version + "?\n" + l.anime + "\n"); //TODO:: create a function that generates the meta data file
                     File.AppendAllText(autodownloader, l.Serialize() + "\n");
 
 

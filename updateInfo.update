@@ -1,26 +1,4 @@
-Auto Downloader 1.2.6
-
-Full Release!
-
-New Features:
-- Now shows version in title
-- Added a new log file, "mainLog.txt"
-- Now has an update checker!
-- Now remembers download queue on close
-- Will now update autodownloader.ini files if versions don't align
-- Will update listings at real time when a new anime folder is loaded
-- You can now cancel getting episodes
+Auto Downloader 1.2.7
 
 Bug Fixes:
-- Fixed a bug where next download in queue would not start after first download
-- Fixed a bug where change log wouldn't show sometimes
-- Fixed a bug where program would crash upon cancelling a download immediately after it starts
-- Fixed a bug where autodownload.ini files where first initialized wrong
-- Fixed a bug where program would crash whilst closing due to an ongoing download
-- Fixed a bug where newer updates won't show after "don't show" checkbox is ticked
-- Fixed a bug where next download in queue would not start after first download
-- Fixed a bug where newer updates won't show after "don't show" checkbox is ticked
-- Fixed a bug where change log wouldn't show
-- Fixed a bug where cancelled downloads would loop continuously
-- Fixed a bug where changing anime folder location in app whilst a program is downloading would cause the wrong autodownloader.ini file to update
-- Fixed a bug where cancelled downloads would loop continuously
+- Fixed a bug where .ini files where formatted wrong
