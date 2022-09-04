@@ -1,7 +1,4 @@
-Auto Downloader 1.2.4
+Auto Downloader 1.2.5
 
 New Features:
-- Now shows version in title
-
-Bug Fixes:
-- Fixed a bug where change log wouldn't show sometimes
+- Now remembers download queue on close

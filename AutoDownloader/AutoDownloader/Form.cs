@@ -170,7 +170,7 @@ namespace AutoDownloader
 
         protected override void OnClosed(EventArgs e)
         {
-            manager.SaveSettings();
+            manager.SaveAll();
         }
 
         [DllImport("user32.dll", CharSet = CharSet.Auto)]

@@ -11,48 +11,10 @@ using System.Threading;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security.Policy;
+using System.Reflection;
 
 namespace AutoDownloader
 {
-    public static class Utils
-    {
-        // https://stackoverflow.com/questions/4359910/how-to-abort-a-task-like-aborting-a-thread-thread-abort-method
-        public static T RunWithAbort<T>(this Func<T> func, int milliseconds) => RunWithAbort(func, new TimeSpan(0, 0, 0, 0, milliseconds));
-        public static T RunWithAbort<T>(this Func<T> func, TimeSpan delay)
-        {
-            if (func == null)
-                throw new ArgumentNullException(nameof(func));
-
-            var source = new CancellationTokenSource(delay);
-            var item = default(T);
-            var handle = IntPtr.Zero;
-            var fn = new Action(() =>
-            {
-                using (source.Token.Register(() => TerminateThread(handle, 0)))
-                {
-                    item = func();
-                }
-            });
-
-            handle = CreateThread(IntPtr.Zero, IntPtr.Zero, fn, IntPtr.Zero, 0, out var id);
-            WaitForSingleObject(handle, 100 + (int)delay.TotalMilliseconds);
-            CloseHandle(handle);
-            return item;
-        }
-
-        [DllImport("kernel32")]
-        private static extern bool TerminateThread(IntPtr hThread, int dwExitCode);
-
-        [DllImport("kernel32")]
-        private static extern IntPtr CreateThread(IntPtr lpThreadAttributes, IntPtr dwStackSize, Delegate lpStartAddress, IntPtr lpParameter, int dwCreationFlags, out int lpThreadId);
-
-        [DllImport("kernel32")]
-        private static extern bool CloseHandle(IntPtr hObject);
-
-        [DllImport("kernel32")]
-        private static extern int WaitForSingleObject(IntPtr hHandle, int dwMilliseconds);
-    }
-
     public class AutoDownloader_9Animeid
     {
         public enum Type
@@ -84,6 +46,36 @@ namespace AutoDownloader
             public string episodeUrl;
             public Type type;
             public bool filler;
+
+            public static bool TryDeserialize(string token, out Link l)
+            {
+                l = new Link();
+                string[] components = token.Split('?');
+                try
+                {
+                    if (components.Any(s => s == string.Empty)) return false;
+
+                    l = new Link()
+                    {
+                        episodeUrl = components[0],
+                        index = int.Parse(components[1]),
+                        filler = components[2] == "true",
+                        episode = components[3],
+                        type = (Type)int.Parse(components[4]),
+                        anime = components[5]
+                    };
+                    return true;
+                }
+                catch (Exception)
+                {
+                    return false;
+                }
+            }
+
+            public string Serialize()
+            {
+                return episodeUrl + "?" + index + "?" + filler + "?" + episode + "?" + (int)type + "?" + anime;
+            }
 
             public override string ToString()
             {
@@ -185,6 +177,9 @@ namespace AutoDownloader
 
         public string savePath = string.Empty;
 
+        static string queueLocation = "queue.txt";
+        static string settingsLocation = "settings.txt";
+
         public AutoDownloader_9Animeid(Form form, ChromiumWebBrowser fetcher, ChromiumWebBrowser downloader)
         {
             this.form = form;
@@ -199,9 +194,90 @@ namespace AutoDownloader
             this.downloader = downloader;
 
             LoadSettings();
+            LoadQueue();
         }
 
-        static string settingsLocation = "settings.txt";
+        public void SaveQueue()
+        {
+            form.Log("[Manager] Saving queue...");
+            try
+            {
+                StringBuilder data = new StringBuilder();
+                if (current != null) data.AppendLine(current.Value.Serialize());
+                foreach (Link l in queue)
+                {
+                    data.AppendLine(l.Serialize());
+                }
+                File.WriteAllText(queueLocation, data.ToString());
+            }
+            catch (Exception err)
+            {
+                form.Log("[Manager] Unable to load old queue.txt (May have been invalidated by an update), removing...");
+                form.Log("[Manager : WARNING] " + err.Message);
+                File.Delete(queueLocation);
+            }
+        }
+        public void SaveSettings()
+        {
+            form.Log("[Manager] Saving settings.txt ...");
+
+            StringBuilder sb = new StringBuilder();
+            sb.AppendLine(savePath);
+            sb.AppendLine("" + form.subbedDubbed);
+            sb.AppendLine((form.checkUpdates ? 1 : 0).ToString());
+            File.WriteAllText(settingsLocation, sb.ToString());
+        }
+
+        public void SaveAll()
+        {
+            SaveSettings();
+            SaveQueue();
+        }
+
+        private void LoadQueue()
+        {
+            form.Log("[Manager] Loading queue.txt ...");
+            if (!File.Exists(settingsLocation))
+            {
+                form.Log("[Manager] queue.txt does not exist.");
+                return;
+            }
+            try
+            {
+                form.Log("[Manager] Reading queue.txt ...");
+                string[] lines = File.ReadAllLines(queueLocation);
+
+                for (int i = 0; i < lines.Length; i++)
+                {
+                    Link l;
+                    if (Link.TryDeserialize(lines[i], out l))
+                    {
+                        switch (l.type)
+                        {
+                            case Type.subbed:
+                                if (!subbed.ContainsKey(l.episodeUrl)) subbed.Add(l.episodeUrl, l);
+                                else continue;
+                                break;
+                            case Type.dubbed:
+                                if (!dubbed.ContainsKey(l.episodeUrl)) dubbed.Add(l.episodeUrl, l);
+                                else continue;
+                                break;
+                            default:
+                                continue;
+                        }
+                        form.Downloads.Items.Add(l);
+                        queue.AddLast(l);
+                    }
+                }
+            }
+            catch (Exception err)
+            {
+                form.Log("[Manager] Unable to load old queue.txt (May have been invalidated by an update), removing...");
+                form.Log("[Manager : WARNING] " + err.Message);
+                File.Delete(queueLocation);
+            }
+        }
+
         private void LoadSettings()
         {
             form.Log("[Manager] Loading settings.txt ...");
@@ -253,7 +329,7 @@ namespace AutoDownloader
             List<Link> foundLinks = new List<Link>();
             if (File.Exists(filePath))
             {
-                string[] data = VerifyMetaFile(filePath);
+                string[] data = VerifyMetaFile(filePath, type);
                 if (data == null)
                 {
                     form.Log("[Manager] autodownloader.ini failed verification..." + filePath);
@@ -267,19 +343,13 @@ namespace AutoDownloader
                         {
                             if (!database.ContainsKey(data[j]))
                             {
-                                string[] components = data[j].Split('?');
-                                Link l = new Link()
+                                Link l;
+                                if (Link.TryDeserialize(data[j], out l))
                                 {
-                                    anime = data[1],
-                                    episodeUrl = components[0],
-                                    index = int.Parse(components[1]),
-                                    filler = components[2] == "true",
-                                    episode = components[3],
-                                    type = type
-                                };
-                                foundLinks.Add(l);
-                                if (!database.ContainsKey(components[0]))
-                                    database.Add(components[0], l);
+                                    foundLinks.Add(l);
+                                    if (!database.ContainsKey(l.episodeUrl))
+                                        database.Add(l.episodeUrl, l);
+                                }
                             }
                         }
                         catch (Exception err)
@@ -297,65 +367,108 @@ namespace AutoDownloader
             }
             return foundLinks;
         }
-        private string[] VerifyMetaFile(string filePath)
+        private string[] VerifyMetaFile(string filePath, Type type)
         {
-            string version = "1.0.0";
-
-            StringBuilder edits = new StringBuilder();
-            string[] lines = File.ReadAllLines(filePath);
-            string[] header = lines[0].Split('?');
-            if (header.Length != 2)
+            try
             {
-                form.Log("[Manager] autodownloader.ini has an invalid header, assuming it is an old version...");
-                form.Log("[Manager : WARNING] Reconstruction of autodownloader.ini may fail resulting in dat for the given folder to be invalid.");
-                try
-                {
-                    edits.AppendLine(version + "?");
-                    FileInfo fileInfo = new FileInfo(filePath);
-                    edits.AppendLine(fileInfo.Directory.Parent.Name);
-                }
-                catch (Exception err)
-                {
-                    form.Log("[Manager] Failed to reconstruct autodownloader.ini for " + filePath);
-                    form.Log("[Manager : FATAL ERROR] " + err.Message);
+                StringBuilder edits = new StringBuilder();
+                FileInfo fileInfo = new FileInfo(filePath);
+                string[] lines = File.ReadAllLines(filePath);
+                string[] header = lines[0].Split('?');
 
-                    return null;
+                if (header.Length != 2)
+                {
+                    form.Log("[Manager] " + filePath + " has an invalid header, assuming it is an old version...");
+                    form.Log("[Manager : WARNING] Reconstruction of " + filePath + " may fail resulting in dat for the given folder to be invalid.");
+                    try
+                    {
+                        edits.AppendLine("1.0.0" + "?");
+                        header[0] = "1.0.0";
+                        edits.AppendLine(fileInfo.Directory.Parent.Name);
+                        for (int i = 0; i < lines.Length; i++) edits.AppendLine(lines[i]);
+                    }
+                    catch (Exception err)
+                    {
+                        form.Log("[Manager] Failed to reconstruct autodownloader.ini for " + filePath);
+                        form.Log("[Manager : FATAL ERROR] " + err.Message);
+
+                        return null;
+                    }
                 }
+
+                Version version = new Version("1.0.2");
+                Version currentVersion;
+                if (Version.TryParse(header[0], out currentVersion))
+                {
+                    if (currentVersion != version)
+                    {
+                        form.Log("[Manager] " + filePath + " is an old version...");
+                        try
+                        {
+                            bool success = false;
+
+                            if (currentVersion == new Version("1.0.0"))
+                            {
+                                currentVersion = new Version("1.0.1");
+                                edits.Clear();
+
+                                edits.AppendLine(version + "?");
+                                edits.AppendLine(fileInfo.Directory.Parent.Name);
+                                for (int i = 2; i < lines.Length; i++)
+                                {
+                                    List<string> components = new List<string>(lines[i].Split('?'));
+                                    components.Add(((int)type).ToString());
+                                    edits.AppendLine(string.Join("?", components));
+                                }
+
+                                success = true;
+                            }
+                            if (currentVersion == new Version("1.0.1"))
+                            {
+                                currentVersion = new Version("1.0.2");
+                                edits.Clear();
+
+                                edits.AppendLine(version + "?");
+                                edits.AppendLine(fileInfo.Directory.Parent.Name);
+                                for (int i = 2; i < lines.Length; i++)
+                                {
+                                    List<string> components = new List<string>(lines[i].Split('?'));
+                                    components.Add(fileInfo.Directory.Parent.Name);
+                                    edits.AppendLine(string.Join("?", components));
+                                }
+
+                                success = true;
+                            }
+
+                            if (!success)
+                            {
+                                form.Log("[Manager] Failed to update " + filePath + " for " + filePath);
+                                form.Log("[Manager : FATAL ERROR] Unknown version.");
+
+                                return null;
+                            }
+                        }
+                        catch (Exception err)
+                        {
+                            form.Log("[Manager] Failed to update " + filePath + " for " + filePath);
+                            form.Log("[Manager : FATAL ERROR] " + err.Message);
+
+                            return null;
+                        }
+                    }
+                }
+
+                if (edits.Length > 0) File.WriteAllText(filePath, edits.ToString());
+
+                return File.ReadAllLines(filePath);
             }
-            else if (header[0] != version)
+            catch (Exception err)
             {
-                form.Log("[Manager] autodownloader.ini is an old version...");
-                try
-                {
-                    edits.AppendLine(version + "?");
-                }
-                catch (Exception err)
-                {
-                    form.Log("[Manager] Failed to update autodownloader.ini for " + filePath);
-                    form.Log("[Manager : FATAL ERROR] " + err.Message);
+                form.Log("[Manager] Failed to update autodownloader.ini for " + filePath);
+                form.Log("[Manager : FATAL ERROR] " + err.Message);
 
-                    return null;
-                }
+                return null;
             }
-
-            if (edits.Length > 0)
-            {
-                for (int i = 0; i < lines.Length; i++) edits.AppendLine(lines[i]);
-                File.WriteAllText(filePath, edits.ToString());
-            }
-
-            return File.ReadAllLines(filePath);
-        }
-
-        public void SaveSettings()
-        {
-            form.Log("[Manager] Saving settings.txt ...");
-
-            StringBuilder sb = new StringBuilder();
-            sb.AppendLine(savePath);
-            sb.AppendLine("" + form.subbedDubbed);
-            sb.AppendLine((form.checkUpdates ? 1 : 0).ToString());
-            File.WriteAllText(settingsLocation, sb.ToString());
         }
 
         public Task active;
@@ -364,7 +477,7 @@ namespace AutoDownloader
             if (active == null || active.IsCompleted) active = Enqueue();
         }
 
-        public Link current;
+        public Link? current = null;
         private async Task Enqueue()
         {
             if (downloads.files.Count == 0)
@@ -514,7 +627,7 @@ namespace AutoDownloader
                 l.cancelled = true;
                 downloads.files[key] = l;
 
-                Remove(current);
+                Remove(current.Value);
             }
         }
 
@@ -747,7 +860,7 @@ namespace AutoDownloader
                     Uri uri = new Uri(downloadItem.Url);
                     string id = Path.GetFileName(uri.AbsolutePath);
 
-                    AutoDownloader_9Animeid.Link l = manager.current;
+                    AutoDownloader_9Animeid.Link l = manager.current.Value;
                     AutoDownloader_9Animeid.DownloadProgress progress = files[id];
 
                     if (progress.savePath == string.Empty) progress.savePath = AppDomain.CurrentDomain.BaseDirectory;
@@ -786,8 +899,9 @@ namespace AutoDownloader
                 if (progress.cancelled)
                 {
                     form.Log("[Web] Cancelling download...");
-                    if (progress.savePath == manager.savePath) form.RestoreEpisode(manager.current);
+                    if (progress.savePath == manager.savePath) form.RestoreEpisode(manager.current.Value);
                     files.Remove(id);
+                    manager.current = null;
                     form.ClearProgress();
                     callback.Cancel();
                     form.DownloadControl(false);
@@ -804,8 +918,8 @@ namespace AutoDownloader
                 {
                     form.Log("[Web] Download completed.");
 
-                    AutoDownloader_9Animeid.Link l = manager.current;
-                    File.AppendAllText(Path.Combine(progress.savePath, l.anime, (l.type == AutoDownloader_9Animeid.Type.subbed ? @"Sub" : @"Dub"), "autodownloader.ini"), l.episodeUrl + "?" + l.index + "?" + l.filler + "?" + l.episode + "\n");
+                    AutoDownloader_9Animeid.Link l = manager.current.Value;
+                    File.AppendAllText(Path.Combine(progress.savePath, l.anime, (l.type == AutoDownloader_9Animeid.Type.subbed ? @"Sub" : @"Dub"), "autodownloader.ini"), l.Serialize() + "\n");
 
                     FileInfo fileInfo = new FileInfo(progress.filePath);
                     fileInfo.MoveTo(Path.Combine(fileInfo.Directory.FullName, l.ToString() + ".mp4"));
@@ -817,6 +931,7 @@ namespace AutoDownloader
                     progress.percentage = 0;
 
                     files.Remove(id);
+                    manager.current = null;
                 }
                 else files[id] = progress;
 
