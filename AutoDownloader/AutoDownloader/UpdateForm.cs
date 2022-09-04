@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Reflection;
 
 namespace AutoDownloader
 {
@@ -24,7 +25,10 @@ namespace AutoDownloader
             this.form = form;
             InitializeComponent();
 
-            ChangeLog.Text = File.ReadAllText(@"updateInfo.temp");
+            FileInfo fileInfo = new FileInfo(@"updateInfo-web.temp");
+            fileInfo.CopyTo(Path.Combine(fileInfo.Directory.FullName, @"updateInfo.temp"), true);
+
+            ChangeLog.Text = File.ReadAllText(@"updateInfo-web.temp");
             SetForegroundWindow(Handle.ToInt32());
 
             if (!realUpdate)

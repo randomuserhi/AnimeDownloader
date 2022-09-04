@@ -112,9 +112,20 @@ namespace AutoDownloader
                 wc.Headers.Add("a", "a");
                 try
                 {
-                    wc.DownloadFile("https://raw.githubusercontent.com/randomuserhi/AnimeDownloader/main/updateInfo.update", @"updateInfo.temp");
+                    wc.DownloadFile("https://raw.githubusercontent.com/randomuserhi/AnimeDownloader/main/updateInfo.update", @"updateInfo-web.temp");
                     if (File.Exists("updateInfo.update"))
                     {
+                        if (File.Exists("updateInfo.temp"))
+                        {
+                            if (!File.ReadAllBytes(@"updateInfo-web.temp").SequenceEqual(File.ReadAllBytes(@"updateInfo.temp")))
+                            {
+                                Log("[Manager] An update is available!");
+                                UpdateForm updateForm = new UpdateForm(this);
+                                updateForm.ShowDialog();
+                                return;
+                            }
+                        }
+                        
                         if (!File.ReadAllBytes(@"updateInfo.temp").SequenceEqual(File.ReadAllBytes(@"updateInfo.update")))
                         {
                             Log("[Manager] An update is available!");
@@ -127,7 +138,7 @@ namespace AutoDownloader
                     {
                         Log("[Manager] Unable to find update info, grabbing from web and assuming on latest...");
                         UpdateForm updateForm = new UpdateForm(this, false);
-                        FileInfo fileInfo = new FileInfo(@"updateInfo.temp");
+                        FileInfo fileInfo = new FileInfo(@"updateInfo-web.temp");
                         fileInfo.MoveTo(Path.Combine(fileInfo.Directory.FullName, @"updateInfo.update"));
                         updateForm.ShowDialog();
                     }

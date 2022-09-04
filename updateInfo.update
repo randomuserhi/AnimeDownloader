@@ -1,11 +1,4 @@
-Auto Downloader 1.2.0
-
-New Features:
-- Now has an update checker!
-- Will now update autodownloader.ini files if versions don't align
-- Will update listings at real time when a new anime folder is loaded
-- You can now cancel getting episodes
+Auto Downloader 1.2.1
 
 Bug Fixes:
-- Fixed a bug where cancelled downloads would loop continuously
-- Fixed a bug where changing anime folder location in app whilst a program is downloading would cause the wrong autodownloader.ini file to update
+- Fixed a bug where newer updates won't show after "don't show" checkbox is ticked
