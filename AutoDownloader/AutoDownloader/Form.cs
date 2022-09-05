@@ -43,7 +43,7 @@ namespace AutoDownloader
     public partial class Form : System.Windows.Forms.Form
     {
         public AutoDownloader_9Animeid manager;
-        private Version version = new Version("1.3.1");
+        private Version version = new Version("1.3.2");
         public Version hidden;
 
         public class ScrollingText
@@ -129,6 +129,7 @@ namespace AutoDownloader
         {
             return new Version(v.Split(new[] { "Auto Downloader " }, StringSplitOptions.RemoveEmptyEntries)[0]);
         }
+        UpdateData? availableUpdate = null;
         public void CheckForUpdates()
         {
             Log("[Manager] Checking for updates...");
@@ -148,6 +149,16 @@ namespace AutoDownloader
                         changeLog = (string)releases[0]["body"]
                     };
                     Version latest = new Version(updateData.version);
+                    if (version < latest)
+                    {
+                        Log("[Manager] Update available. [ https://github.com/randomuserhi/AnimeDownloader/releases ]");
+                        availableUpdate = updateData;
+                    }
+                    else if (version == latest)
+                        Log("[Manager] No updates found.");
+                    else
+                        Log("[Manager] Pre-release version.");
+
                     if (new Version(manager.settings.hidden) != latest || manager.settings.showUpdates)
                     {
                         if (version < latest)
@@ -157,13 +168,9 @@ namespace AutoDownloader
                         }
                         else if (version == latest)
                         {
-                            Log("[Manager] No updates found.");
-
                             UpdateForm updateForm = new UpdateForm(this, updateData.version, updateData, true);
                             updateForm.ShowDialog();
                         }
-                        else
-                            Log("[Manager] Pre-release version.");
                     }
                 }
                 catch (Exception err)
@@ -583,6 +590,15 @@ namespace AutoDownloader
                 return;
             }
             selectionScroll.Text = ((AutoDownloader_9Animeid.Link)Downloads.SelectedItems[Downloads.SelectedItems.Count - 1]).ToString();
+        }
+
+        private void Debug_LinkClicked(object sender, LinkClickedEventArgs e)
+        {
+            if (availableUpdate != null)
+            {
+                UpdateForm updateForm = new UpdateForm(this, availableUpdate.Value.version, availableUpdate.Value);
+                updateForm.ShowDialog();
+            }
         }
     }
 }

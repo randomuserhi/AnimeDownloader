@@ -71,6 +71,7 @@ namespace AutoDownloader
             this.Debug.Size = new System.Drawing.Size(450, 252);
             this.Debug.TabIndex = 2;
             this.Debug.Text = "";
+            this.Debug.LinkClicked += new System.Windows.Forms.LinkClickedEventHandler(this.Debug_LinkClicked);
             // 
             // fetcher
             // 
@@ -265,10 +266,10 @@ namespace AutoDownloader
             this.label2.TabIndex = 24;
             this.label2.Text = "Enqueueing:";
             // 
-            // Current
+            // CurrentEnqueue
             // 
             this.CurrentEnqueue.Location = new System.Drawing.Point(1180, 54);
-            this.CurrentEnqueue.Name = "Current";
+            this.CurrentEnqueue.Name = "CurrentEnqueue";
             this.CurrentEnqueue.ReadOnly = true;
             this.CurrentEnqueue.Size = new System.Drawing.Size(290, 20);
             this.CurrentEnqueue.TabIndex = 25;
