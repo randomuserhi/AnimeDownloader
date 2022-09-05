@@ -30,25 +30,29 @@ namespace Updater
             foreach (FileInfo file in dir.GetFiles())
             {
                 string targetFilePath = Path.Combine(destinationDir, file.Name);
-                int attempts = 0;
-                for (; attempts < 10; attempts++)
+                if (file.Name != "Updater.exe")
                 {
-                    try
+                    int attempts = 0;
+                    for (; attempts < 10; attempts++)
                     {
-                        file.CopyTo(targetFilePath, true);
+                        try
+                        {
+                            file.CopyTo(targetFilePath, true);
 
-                        break;
+                            break;
+                        }
+                        catch (Exception err)
+                        {
+                            Console.WriteLine("[Updater] Failed to copy " + targetFilePath);
+                            Console.WriteLine("[Updater] Trying again... ");
+                            Console.WriteLine("[Updater : WARNING] " + err);
+                            Task.Delay(1000).Wait();
+                        }
                     }
-                    catch (Exception err)
-                    {
-                        Console.WriteLine("[Updater] Failed to copy " + targetFilePath);
-                        Console.WriteLine("[Updater] Trying again... ");
-                        Console.WriteLine("[Updater : WARNING] " + err);
-                        Task.Delay(1000).Wait();
-                    }
+
+                    if (attempts == 10) throw new Exception("Failed to move file after 10 attempts.");
+                    else Console.WriteLine("[Updater] Moved " + targetFilePath);
                 }
-                if (attempts == 10) throw new Exception("Failed to move file after 10 attempts.");
-                else Console.WriteLine("[Updater] Moved " + targetFilePath);
             }
 
             // If recursive and copying subdirectories, recursively call this method

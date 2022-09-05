@@ -33,6 +33,7 @@
             this.DownloadUpdate = new System.Windows.Forms.Button();
             this.DontShow = new System.Windows.Forms.CheckBox();
             this.Continue = new System.Windows.Forms.Button();
+            this.DownloadBar = new System.Windows.Forms.ProgressBar();
             this.SuspendLayout();
             // 
             // ChangeLog
@@ -40,7 +41,7 @@
             this.ChangeLog.Location = new System.Drawing.Point(12, 28);
             this.ChangeLog.Name = "ChangeLog";
             this.ChangeLog.ReadOnly = true;
-            this.ChangeLog.Size = new System.Drawing.Size(433, 227);
+            this.ChangeLog.Size = new System.Drawing.Size(433, 198);
             this.ChangeLog.TabIndex = 24;
             this.ChangeLog.Text = "";
             // 
@@ -83,11 +84,19 @@
             this.Continue.UseVisualStyleBackColor = true;
             this.Continue.Click += new System.EventHandler(this.Continue_Click);
             // 
+            // DownloadBar
+            // 
+            this.DownloadBar.Location = new System.Drawing.Point(12, 232);
+            this.DownloadBar.Name = "DownloadBar";
+            this.DownloadBar.Size = new System.Drawing.Size(433, 23);
+            this.DownloadBar.TabIndex = 29;
+            // 
             // UpdateForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(457, 296);
+            this.Controls.Add(this.DownloadBar);
             this.Controls.Add(this.Continue);
             this.Controls.Add(this.DontShow);
             this.Controls.Add(this.DownloadUpdate);
@@ -110,5 +119,6 @@
         private System.Windows.Forms.Button DownloadUpdate;
         private System.Windows.Forms.CheckBox DontShow;
         private System.Windows.Forms.Button Continue;
+        private System.Windows.Forms.ProgressBar DownloadBar;
     }
 }

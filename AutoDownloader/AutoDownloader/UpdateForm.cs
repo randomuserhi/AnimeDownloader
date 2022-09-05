@@ -14,6 +14,8 @@ using System.Net;
 using static System.Net.Mime.MediaTypeNames;
 using System.Diagnostics;
 using Ionic.Zip;
+using static System.Net.WebRequestMethods;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace AutoDownloader
 {
@@ -39,6 +41,7 @@ namespace AutoDownloader
             if (changeLog)
             {
                 DownloadUpdate.Visible = false;
+                DownloadBar.Visible = false;
                 Text = "Change Log";
             }
         }
@@ -63,33 +66,119 @@ namespace AutoDownloader
             }
             ChangeLog.Text = sb.ToString();
             Form.ScrollToBottom(ChangeLog);
+
+            DownloadBar.Maximum = 100;
         }
 
-        private bool GetUpdate(UpdateData data)
+        private void SetProgress(int progress)
         {
+            if (InvokeRequired)
+            {
+                this.Invoke(new Action<int>(SetProgress), new object[] { progress });
+                return;
+            }
+
+            DownloadBar.Value = progress;
+        }
+
+        private void GetUpdate(UpdateData data)
+        {
+            if (!Directory.Exists("update")) Directory.CreateDirectory("update");
+
             try
             {
-                if (!Directory.Exists("update")) Directory.CreateDirectory("update");
-
                 using (WebClient wc = new WebClient())
                 {
                     Log("[Update] Grabbing update from: " + data.url);
-                    wc.DownloadFile(data.url, @"update\update.temp");
-                    Log("[Update] Extracting update...");
-                    using (ZipFile archive = new ZipFile(Path.Combine(System.Windows.Forms.Application.StartupPath, @"update\update.temp")))
+                    wc.DownloadProgressChanged += (s, e) =>
                     {
-                        archive.ExtractAll(Path.Combine(System.Windows.Forms.Application.StartupPath, @"update"), ExtractExistingFileAction.OverwriteSilently);
-                    }
+                        SetProgress(e.ProgressPercentage);
+                    };
+                    wc.DownloadFileAsync(new Uri(data.url), @"update\update.temp");
+                    wc.DownloadFileCompleted += (s, e) =>
+                    {
+                        Task.Run(() =>
+                        {
+                            try
+                            {
+                                string path = Path.Combine(System.Windows.Forms.Application.StartupPath, @"update\update.temp");
+                                Log("[Update] Extracting update...");
+                                int attempts = 0;
+                                for (; attempts < 10; attempts++)
+                                {
+                                    try
+                                    {
+                                        using (ZipFile archive = new ZipFile(path))
+                                        {
+                                            archive.ExtractAll(Path.Combine(System.Windows.Forms.Application.StartupPath, @"update"), ExtractExistingFileAction.OverwriteSilently);
+                                        }
+
+                                        break;
+                                    }
+                                    catch (Exception err)
+                                    {
+                                        Log("[Update] Failed to extract, trying again...");
+                                        Log("[Update : WARNING] " + err);
+                                        Task.Delay(1000).Wait();
+                                    }
+                                }
+                                if (attempts == 10) throw new Exception("Failed to extract file after 10 attempts.");
+
+                                System.IO.File.Delete(path);
+                                Log("[Update] Finished and restarting...");
+                            }
+                            catch (Exception err)
+                            {
+                                Log("[Update] Failed to extract update.");
+                                Log("[Update : FATAL ERROR] " + err.Message);
+                                DownloadUpdateEnable(true);
+                            }
+
+                            try
+                            {
+                                ProcessStartInfo updater = new ProcessStartInfo(Path.Combine(System.Windows.Forms.Application.StartupPath, "Updater.exe"));
+                                updater.WindowStyle = ProcessWindowStyle.Normal;
+                                updater.Arguments = AddQuotesIfRequired(System.Windows.Forms.Application.StartupPath);
+                                Process.Start(updater);
+                                KillApplication();
+                            }
+                            catch (Exception err)
+                            {
+                                Log("[Update] Failed to restart program.");
+                                Log("[Update : FATAL ERROR] " + err.Message);
+                                DownloadUpdateEnable(true);
+                            }
+                        });
+                    };
                 }
-                File.Delete(@"update.temp");
-                Log("[Update] Finished and restarting...");
-                return true;
             }
             catch (Exception err)
             {
-                Log("Failed to download update: " + err.Message);
-                return false;
+                Log("[Update] Failed to grab update.");
+                Log("[Update : FATAL ERROR] " + err.Message);
+                DownloadUpdateEnable(true);
             }
+        }
+
+        // https://stackoverflow.com/questions/6521546/how-to-handle-spaces-in-file-path-if-the-folder-contains-the-space
+        private string AddQuotesIfRequired(string path)
+        {
+            return !string.IsNullOrWhiteSpace(path) ?
+                path.Contains(" ") && (!path.StartsWith("\"") && !path.EndsWith("\"")) ?
+                    "\"" + path + "\"" : path :
+                    string.Empty;
+        }
+
+        private void KillApplication()
+        {
+            if (InvokeRequired)
+            {
+                this.Invoke(new Action(KillApplication), new object[] { });
+                return;
+            }
+
+            updating = false;
+            System.Windows.Forms.Application.Exit();
         }
 
         private void DownloadUpdateEnable(bool enabled)
@@ -100,37 +189,27 @@ namespace AutoDownloader
                 return;
             }
 
+            updating = !enabled;
             DownloadUpdate.Enabled = enabled;
             Continue.Enabled = enabled;
             DontShow.Enabled = enabled;
             DownloadUpdate.Text = enabled ? "Update now" : "Downloading, do not close...";
         }
 
-        Task<bool> updateTask;
+        bool updating = false;
         private void DownloadUpdate_Click(object sender, EventArgs e)
         {
-            if (updateTask == null)
+            if (!updating)
             {
-                updateTask = Task<bool>.Run(() => GetUpdate(data));
-                updateTask.ContinueWith((result) =>
-                {
-                    if (result.Result)
-                    {
-                        ProcessStartInfo updater = new ProcessStartInfo("updater.exe");
-                        updater.WindowStyle = ProcessWindowStyle.Normal;
-                        updater.Arguments = System.Windows.Forms.Application.StartupPath;
-                        Process.Start(updater);
-                        System.Windows.Forms.Application.Exit();
-                    }
-                    else DownloadUpdateEnable(true);
-                });
+                updating = true;
+                GetUpdate(data);
             }
             DownloadUpdateEnable(false);
         }
 
         private void UpdateForm_FormClosing(object sender, FormClosingEventArgs e)
         {
-            if (updateTask != null && !updateTask.IsCompleted)
+            if (updating)
             {
                 MessageBox.Show("An update is installing, do not close.");
                 e.Cancel = true;
