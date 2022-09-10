@@ -499,7 +499,7 @@ namespace AutoDownloader
                                 {
                                     Link l;
                                     if (Link.TryDeserialize(lines[i], out l))
-                                        data.links[i - 2] = l;
+                                        data.links.Add(l);
                                     else
                                     {
                                         form.Log("[Manager] Failed to updated to " + currentVersion);
@@ -514,7 +514,7 @@ namespace AutoDownloader
                             }
                             if (!success)
                             {
-                                form.Log("[Manager] Failed to update " + filePath + " for " + filePath);
+                                form.Log("[Manager] Failed to update " + filePath);
                                 form.Log("[Manager : FATAL ERROR] Unknown version.");
 
                                 return null;
@@ -522,7 +522,7 @@ namespace AutoDownloader
                         }
                         catch (Exception err)
                         {
-                            form.Log("[Manager] Failed to update " + filePath + " for " + filePath);
+                            form.Log("[Manager] Failed to update " + filePath);
                             form.Log("[Manager : FATAL ERROR] " + err.Message);
 
                             return null;
