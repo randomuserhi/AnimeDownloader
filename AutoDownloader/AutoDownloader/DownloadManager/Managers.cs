@@ -83,7 +83,7 @@ namespace AutoDownloader
 
             public override string ToString()
             {
-                return (type == Type.subbed ? "[Sub] " : "[Dub] ") + (index + 1) + " - " + anime + " " + (filler ? " **Filler** " : string.Empty) + (episode != string.Empty ? " - " + episode : string.Empty);
+                return (type == Type.subbed ? "[Sub] " : "[Dub] ") + (index + 1) + " - " + anime + " " + (filler ? " [Filler] " : string.Empty) + (episode != string.Empty ? " - " + episode : string.Empty);
             }
 
             public static bool operator ==(Link a, Link b)

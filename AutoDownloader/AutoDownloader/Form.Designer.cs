@@ -109,7 +109,6 @@ namespace AutoDownloader
             this.Episodes.SelectionMode = System.Windows.Forms.SelectionMode.MultiExtended;
             this.Episodes.Size = new System.Drawing.Size(179, 420);
             this.Episodes.TabIndex = 6;
-            this.Episodes.SelectedValueChanged += new System.EventHandler(this.Episodes_SelectedValueChanged);
             // 
             // AddEpisodes
             // 
