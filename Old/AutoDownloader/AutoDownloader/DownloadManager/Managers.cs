@@ -870,11 +870,51 @@ namespace AutoDownloader
                         return null;
                 }
 
+                // TODO(randomuserhi): Add possible starts and endings to a config file
                 form.Log("[Get] Finding title...");
-                string titlePrefix = "<title>Watch ";
+                string[] possibleStarts = new string[]
+                {
+                    "Watch ",
+                    "9Anime - ",
+                    "Anime "
+                };
+                string titlePrefix = "<title>";
+                int titlePrefixIndex = -1;
+                for (int i = 0; i < possibleStarts.Length; ++i)
+                {
+                    titlePrefixIndex = html.IndexOf("<title>" + possibleStarts[i]);
+                    if (titlePrefixIndex != -1)
+                    {
+                        titlePrefix = possibleStarts[i];
+                        break;
+                    }
+                }
+                if (titlePrefixIndex == -1)
+                {
+                    form.Log("[Get] Unable to find title starting prefix. Using 9anime's raw title...");
+                }
                 int titleStart = html.IndexOf(titlePrefix) + titlePrefix.Length;
-                int titleEnd = html.IndexOf(" Online in HD with English Subbed, Dubbed</title>");
+                string[] possibleEndings = new string[]
+                {
+                    " Online in HD with English Subbed, Dubbed",
+                    " Online with SUB/DUB - 9Anime",
+                    " Anime English SUB/DUB - 9Anime",
+                    " Anime Online | 9Anime",
+                    " Watch Online Free - 9Anime"
+                };
+                int titleEnd = -1;
+                for (int i = 0; i < possibleEndings.Length; ++i)
+                {
+                    titleEnd = html.IndexOf(possibleEndings[i] + "</title>");
+                    if (titleEnd != -1) break;
+                }
+                if (titleEnd == -1)
+                {
+                    form.Log("[Get] Unable to find title ending prefix. Using 9anime's raw title...");
+                    titleEnd = html.IndexOf("</title>");
+                }
                 string anime = html.Substring(titleStart, titleEnd - titleStart);
+                form.Log($"[Get] Using title: '{anime}'");
                 var invalids = System.IO.Path.GetInvalidFileNameChars();
                 anime = String.Join("", anime.Split(invalids, StringSplitOptions.RemoveEmptyEntries)).TrimEnd('.');
 

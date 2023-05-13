@@ -43,7 +43,7 @@ namespace AutoDownloader
     public partial class Form : System.Windows.Forms.Form
     {
         public AutoDownloader_9Animeid manager;
-        private Version version = new Version("1.3.3");
+        private Version version = new Version("1.3.4");
         public Version hidden;
 
         public class ScrollingText
@@ -120,6 +120,7 @@ namespace AutoDownloader
 
             browser.LifeSpanHandler = new PopupManager();
             browser.Load("https://9anime.id/");
+            //browser.Load("https://www.youtube.com/watch?v=9fvETktnaRw&ab_channel=BernardAlbertson");
 
             CheckForUpdates();
             EpisodeControl(true);
