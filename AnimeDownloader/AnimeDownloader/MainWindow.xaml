@@ -6,7 +6,7 @@
         xmlns:cefSharp="clr-namespace:CefSharp.Wpf;assembly=CefSharp.Wpf"
         xmlns:local="clr-namespace:AnimeDownloader"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
+        Title="raudy" Height="450" Width="800">
     <Grid>
         <cefSharp:ChromiumWebBrowser
             Address="www.google.com"/>

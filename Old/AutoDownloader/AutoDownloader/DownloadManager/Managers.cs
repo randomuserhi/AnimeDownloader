@@ -16,7 +16,9 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Diagnostics;
 using System.IO.Pipes;
+using System.Web;
 using static AutoDownloader.AutoDownloader_9Animeid;
+using System.Xml;
 
 namespace AutoDownloader
 {
@@ -147,11 +149,12 @@ namespace AutoDownloader
 
             public static string RedirectMp4UploadLink =
                 @"
-                    document.getElementById('todl').click();
+                    document.getElementById('method_free').click();
                 ";
 
             public static string StartMp4UploadDownload =
                 @"
+                    document.getElementById('downloadbtn').removeAttribute('disabled');
                     document.getElementById('downloadbtn').click();
                 ";
 
@@ -900,7 +903,10 @@ namespace AutoDownloader
                     " Online with SUB/DUB - 9Anime",
                     " Anime English SUB/DUB - 9Anime",
                     " Anime Online | 9Anime",
-                    " Watch Online Free - 9Anime"
+                    " Watch Online Free - 9Anime",
+                    " Online in HD - 9Anime",
+                    " in HD Online for Free - 9Anime",
+                    " Watch Anime Online"
                 };
                 int titleEnd = -1;
                 for (int i = 0; i < possibleEndings.Length; ++i)
@@ -914,6 +920,7 @@ namespace AutoDownloader
                     titleEnd = html.IndexOf("</title>");
                 }
                 string anime = html.Substring(titleStart, titleEnd - titleStart);
+                anime = HttpUtility.HtmlDecode(anime);
                 form.Log($"[Get] Using title: '{anime}'");
                 var invalids = System.IO.Path.GetInvalidFileNameChars();
                 anime = String.Join("", anime.Split(invalids, StringSplitOptions.RemoveEmptyEntries)).TrimEnd('.');
