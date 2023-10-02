@@ -17,12 +17,12 @@ using System.Text.Json.Serialization;
 using System.Diagnostics;
 using System.IO.Pipes;
 using System.Web;
-using static AutoDownloader.AutoDownloader_9Animeid;
+using static AutoDownloader.Aniwave;
 using System.Xml;
 
 namespace AutoDownloader
 {
-    public class AutoDownloader_9Animeid
+    public class Aniwave
     {
         public enum Type
         {
@@ -185,7 +185,7 @@ namespace AutoDownloader
         static string queueLocation = @"custom\queue.txt";
         static string settingsLocation = @"custom\settings.txt";
 
-        public AutoDownloader_9Animeid(Form form, ChromiumWebBrowser fetcher, ChromiumWebBrowser downloader)
+        public Aniwave(Form form, ChromiumWebBrowser fetcher, ChromiumWebBrowser downloader)
         {
             this.form = form;
 
@@ -1005,10 +1005,10 @@ namespace AutoDownloader
         public object mutex = new object();
 
         private Form form;
-        private AutoDownloader_9Animeid manager;
-        public Dictionary<string, AutoDownloader_9Animeid.DownloadProgress> files = new Dictionary<string, AutoDownloader_9Animeid.DownloadProgress>();
+        private Aniwave manager;
+        public Dictionary<string, Aniwave.DownloadProgress> files = new Dictionary<string, Aniwave.DownloadProgress>();
 
-        public DownloadManager(Form form, AutoDownloader_9Animeid downloader)
+        public DownloadManager(Form form, Aniwave downloader)
         {
             this.manager = downloader;
             this.form = form;
@@ -1021,7 +1021,7 @@ namespace AutoDownloader
 
             if (!files.ContainsKey(id))
             {
-                AutoDownloader_9Animeid.DownloadProgress progress = new AutoDownloader_9Animeid.DownloadProgress()
+                Aniwave.DownloadProgress progress = new Aniwave.DownloadProgress()
                 {
                     id = id,
                     fileName = manager.current.ToString() + ".mp4",
@@ -1052,20 +1052,20 @@ namespace AutoDownloader
                     Uri uri = new Uri(downloadItem.Url);
                     string id = Path.GetFileName(uri.AbsolutePath);
 
-                    AutoDownloader_9Animeid.Link l = manager.current.Value;
-                    AutoDownloader_9Animeid.DownloadProgress progress = files[id];
+                    Aniwave.Link l = manager.current.Value;
+                    Aniwave.DownloadProgress progress = files[id];
 
                     if (progress.savePath == string.Empty) progress.savePath = AppDomain.CurrentDomain.BaseDirectory;
-                    string DownloadsDirectoryPath = Path.Combine(progress.savePath, l.anime, (l.type == AutoDownloader_9Animeid.Type.subbed ? @"Sub" : @"Dub"));
+                    string DownloadsDirectoryPath = Path.Combine(progress.savePath, l.anime, (l.type == Aniwave.Type.subbed ? @"Sub" : @"Dub"));
                     string fullPath = Path.Combine(DownloadsDirectoryPath, l.ToString() + ".temp");
 
-                    AutoDownloader_9Animeid.metadata_1_0_4 data = new metadata_1_0_4()
+                    Aniwave.metadata_1_0_4 data = new metadata_1_0_4()
                     { 
                         version = manager.version.ToString(),
                         anime = l.anime,
                         links = new List<Link>()
                     };
-                    string metadataFile = Path.Combine(progress.savePath, l.anime, (l.type == AutoDownloader_9Animeid.Type.subbed ? @"Sub" : @"Dub"), "autodownloader.ini");
+                    string metadataFile = Path.Combine(progress.savePath, l.anime, (l.type == Aniwave.Type.subbed ? @"Sub" : @"Dub"), "autodownloader.ini");
                     Directory.CreateDirectory(new FileInfo(metadataFile).Directory.FullName);
                     if (!File.Exists(metadataFile)) File.WriteAllText(metadataFile, JsonSerializer.Serialize(data));
 
@@ -1097,7 +1097,7 @@ namespace AutoDownloader
                     return;
                 }
 
-                AutoDownloader_9Animeid.DownloadProgress progress = files[id];
+                Aniwave.DownloadProgress progress = files[id];
                 if (!progress.acknowledged) return;
                 if (progress.cancelled)
                 {
@@ -1125,15 +1125,15 @@ namespace AutoDownloader
                 {
                     form.Log("[Web] Download completed.");
 
-                    AutoDownloader_9Animeid.Link l = manager.current.Value;
+                    Aniwave.Link l = manager.current.Value;
 
-                    string metadataFile = Path.Combine(progress.savePath, l.anime, (l.type == AutoDownloader_9Animeid.Type.subbed ? @"Sub" : @"Dub"), "autodownloader.ini");
+                    string metadataFile = Path.Combine(progress.savePath, l.anime, (l.type == Aniwave.Type.subbed ? @"Sub" : @"Dub"), "autodownloader.ini");
                     int attempts = 0;
                     for (; attempts < 10; attempts++)
                     {
                         try
                         {
-                            AutoDownloader_9Animeid.metadata_1_0_4 data = JsonSerializer.Deserialize<metadata_1_0_4>(File.ReadAllText(metadataFile));
+                            Aniwave.metadata_1_0_4 data = JsonSerializer.Deserialize<metadata_1_0_4>(File.ReadAllText(metadataFile));
                             data.links.Add(l);
 
                             StreamWriter w = new StreamWriter(metadataFile, false);

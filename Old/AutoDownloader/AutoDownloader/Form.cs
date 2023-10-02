@@ -42,8 +42,8 @@ namespace AutoDownloader
 
     public partial class Form : System.Windows.Forms.Form
     {
-        public AutoDownloader_9Animeid manager;
-        private Version version = new Version("1.3.6");
+        public Aniwave manager;
+        private Version version = new Version("1.3.7");
         public Version hidden;
 
         public class ScrollingText
@@ -107,7 +107,7 @@ namespace AutoDownloader
             CurrentLabel.Text = string.Empty;
             currentAnimeLabel.Text = string.Empty;
 
-            manager = new AutoDownloader_9Animeid(this, fetcher, downloader);
+            manager = new Aniwave(this, fetcher, downloader);
 
             currentAnimeScroll = new ScrollingText(currentAnimeLabel);
             selectionScroll = new ScrollingText(CurrentSelection);
@@ -119,7 +119,7 @@ namespace AutoDownloader
             };
 
             browser.LifeSpanHandler = new PopupManager();
-            browser.Load("https://9anime.id/");
+            browser.Load("https://aniwave.to/");
             //browser.Load("https://www.youtube.com/watch?v=9fvETktnaRw&ab_channel=BernardAlbertson");
 
             CheckForUpdates();
@@ -239,8 +239,8 @@ namespace AutoDownloader
             if (enabled)
             {
                 currentAnimeScroll.Text = currentAnime;
-                SubbedButton.Enabled = manager.settings.activeType != AutoDownloader_9Animeid.Type.subbed;
-                DubbedButton.Enabled = manager.settings.activeType != AutoDownloader_9Animeid.Type.dubbed;
+                SubbedButton.Enabled = manager.settings.activeType != Aniwave.Type.subbed;
+                DubbedButton.Enabled = manager.settings.activeType != Aniwave.Type.dubbed;
             }
             else
             {
@@ -261,11 +261,11 @@ namespace AutoDownloader
             Cancel.Enabled = enabled;
         }
 
-        public void SetEpisodes(AutoDownloader_9Animeid.Link[] links)
+        public void SetEpisodes(Aniwave.Link[] links)
         {
             if (InvokeRequired)
             {
-                this.Invoke(new Action<AutoDownloader_9Animeid.Link[]>(SetEpisodes), new object[] { links });
+                this.Invoke(new Action<Aniwave.Link[]>(SetEpisodes), new object[] { links });
                 return;
             }
 
@@ -288,13 +288,13 @@ namespace AutoDownloader
             CurrentLabel.Text = String.Empty;
         }
 
-        public void SetProgress(AutoDownloader_9Animeid.DownloadProgress progress)
+        public void SetProgress(Aniwave.DownloadProgress progress)
         {
             try
             {
                 if (InvokeRequired)
                 {
-                    this.Invoke(new Action<AutoDownloader_9Animeid.DownloadProgress>(SetProgress), new object[] { progress });
+                    this.Invoke(new Action<Aniwave.DownloadProgress>(SetProgress), new object[] { progress });
                     return;
                 }
 
@@ -362,7 +362,7 @@ namespace AutoDownloader
             }
         }
 
-        public void RestoreEpisodesFromListings(List<AutoDownloader_9Animeid.Link> link)
+        public void RestoreEpisodesFromListings(List<Aniwave.Link> link)
         {
             if (manager == null) return; //Prevents first boot up call from breaking
 
@@ -373,9 +373,9 @@ namespace AutoDownloader
             EpisodeControl(false, false);
 
             Downloads.Items.Clear();
-            LinkedList<AutoDownloader_9Animeid.Link> old = new LinkedList<AutoDownloader_9Animeid.Link>(manager.queue);
+            LinkedList<Aniwave.Link> old = new LinkedList<Aniwave.Link>(manager.queue);
             manager.queue.Clear();
-            foreach (AutoDownloader_9Animeid.Link item in old)
+            foreach (Aniwave.Link item in old)
             {
                 if (!link.Any(l => l == item))
                 {
@@ -384,10 +384,10 @@ namespace AutoDownloader
 
                     switch (item.type)
                     {
-                        case AutoDownloader_9Animeid.Type.subbed:
+                        case Aniwave.Type.subbed:
                             manager.subbed.Add(item.episodeUrl, item);
                             break;
-                        case AutoDownloader_9Animeid.Type.dubbed:
+                        case Aniwave.Type.dubbed:
                             manager.dubbed.Add(item.episodeUrl, item);
                             break;
                     }
@@ -411,10 +411,10 @@ namespace AutoDownloader
 
         private void AddEpisodes_Click(object sender, EventArgs e)
         {
-            AutoDownloader_9Animeid.Link[] links = new AutoDownloader_9Animeid.Link[Episodes.SelectedIndices.Count];
+            Aniwave.Link[] links = new Aniwave.Link[Episodes.SelectedIndices.Count];
             for (int i = 0; i < links.Length; i++)
             {
-                links[i] = (AutoDownloader_9Animeid.Link)Episodes.Items[Episodes.SelectedIndices[i]];
+                links[i] = (Aniwave.Link)Episodes.Items[Episodes.SelectedIndices[i]];
             }
             for (int i = 0; i < links.Length; i++)
             {
@@ -424,11 +424,11 @@ namespace AutoDownloader
             manager.AddEpisodes(links, manager.settings.activeType);
         }
 
-        public void SetQueue(AutoDownloader_9Animeid.Link? link)
+        public void SetQueue(Aniwave.Link? link)
         {
             if (InvokeRequired)
             {
-                this.Invoke(new Action<AutoDownloader_9Animeid.Link?>(SetQueue), new object[] { link });
+                this.Invoke(new Action<Aniwave.Link?>(SetQueue), new object[] { link });
                 return;
             }
 
@@ -438,11 +438,11 @@ namespace AutoDownloader
                 currentEnqueueScroll.Text = string.Empty;
         }
 
-        public void RestoreEpisodeToQueue(AutoDownloader_9Animeid.Link link, bool first = true)
+        public void RestoreEpisodeToQueue(Aniwave.Link link, bool first = true)
         {
             if (InvokeRequired)
             {
-                this.Invoke(new Action<AutoDownloader_9Animeid.Link, bool>(RestoreEpisodeToQueue), new object[] { link, first });
+                this.Invoke(new Action<Aniwave.Link, bool>(RestoreEpisodeToQueue), new object[] { link, first });
                 return;
             }
 
@@ -450,11 +450,11 @@ namespace AutoDownloader
             else Downloads.Items.Insert(0, manager.current.Value);
         }
 
-        public void RestoreEpisode(AutoDownloader_9Animeid.Link link)
+        public void RestoreEpisode(Aniwave.Link link)
         {
             if (InvokeRequired)
             {
-                this.Invoke(new Action<AutoDownloader_9Animeid.Link>(RestoreEpisode), new object[] { link });
+                this.Invoke(new Action<Aniwave.Link>(RestoreEpisode), new object[] { link });
                 return;
             }
 
@@ -465,7 +465,7 @@ namespace AutoDownloader
                     {
                         if (j < Episodes.Items.Count)
                         {
-                            if (((AutoDownloader_9Animeid.Link)Episodes.Items[j]).index > link.index)
+                            if (((Aniwave.Link)Episodes.Items[j]).index > link.index)
                             {
                                 Episodes.Items.Insert(j, link);
                                 break;
@@ -483,8 +483,8 @@ namespace AutoDownloader
         private string currentAnime = string.Empty;
         private void RemoveEpisodes_Click(object sender, EventArgs e)
         {
-            AutoDownloader_9Animeid.Link[] links = new AutoDownloader_9Animeid.Link[Downloads.SelectedIndices.Count];
-            for (int i = 0; i < links.Length; i++) links[i] = (AutoDownloader_9Animeid.Link)Downloads.Items[Downloads.SelectedIndices[i]];
+            Aniwave.Link[] links = new Aniwave.Link[Downloads.SelectedIndices.Count];
+            for (int i = 0; i < links.Length; i++) links[i] = (Aniwave.Link)Downloads.Items[Downloads.SelectedIndices[i]];
             for (int i = 0; i < links.Length; i++)
             {
                 Downloads.Items.Remove(links[i]);
@@ -494,7 +494,7 @@ namespace AutoDownloader
             manager.RemoveEpisodes(links);
         }
 
-        private AutoDownloader_9Animeid.Type lastType = AutoDownloader_9Animeid.Type.dubbed;
+        private Aniwave.Type lastType = Aniwave.Type.dubbed;
         private void Type_SelectedIndexChanged(object sender, EventArgs e)
         {
             if (lastType != manager.settings.activeType)
@@ -563,14 +563,14 @@ namespace AutoDownloader
         {
             SubbedButton.Enabled = false;
             DubbedButton.Enabled = true;
-            manager.settings.activeType = AutoDownloader_9Animeid.Type.subbed;
+            manager.settings.activeType = Aniwave.Type.subbed;
         }
 
         private void DubbedButton_Click(object sender, EventArgs e)
         {
             SubbedButton.Enabled = true;
             DubbedButton.Enabled = false;
-            manager.settings.activeType = AutoDownloader_9Animeid.Type.dubbed;
+            manager.settings.activeType = Aniwave.Type.dubbed;
         }
 
         private void Episodes_SelectedValueChanged(object sender, EventArgs e)
@@ -580,7 +580,7 @@ namespace AutoDownloader
                 selectionScroll.Text = string.Empty;
                 return;
             }
-            selectionScroll.Text = ((AutoDownloader_9Animeid.Link)Episodes.SelectedItems[Episodes.SelectedItems.Count - 1]).ToString();
+            selectionScroll.Text = ((Aniwave.Link)Episodes.SelectedItems[Episodes.SelectedItems.Count - 1]).ToString();
         }
 
         private void Downloads_SelectedValueChanged(object sender, EventArgs e)
@@ -590,7 +590,7 @@ namespace AutoDownloader
                 selectionScroll.Text = string.Empty;
                 return;
             }
-            selectionScroll.Text = ((AutoDownloader_9Animeid.Link)Downloads.SelectedItems[Downloads.SelectedItems.Count - 1]).ToString();
+            selectionScroll.Text = ((Aniwave.Link)Downloads.SelectedItems[Downloads.SelectedItems.Count - 1]).ToString();
         }
 
         private void Debug_LinkClicked(object sender, LinkClickedEventArgs e)
